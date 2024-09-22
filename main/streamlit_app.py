@@ -2,7 +2,7 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import yfinance as yf
-from datetime import datetime
+from datetime import datetime, timedelta
 from scipy.optimize import fsolve
 from scipy.stats import norm
 import matplotlib.pyplot as plt
@@ -24,16 +24,31 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Get current date
-today = datetime.now()
+# Function to find the most recent market day if today is a weekend
+def get_recent_market_day(today):
+    # If today is Saturday, go back to Friday
+    if today.weekday() == 5:  # Saturday
+        return today - timedelta(days=1)
+    # If today is Sunday, go back to Friday
+    elif today.weekday() == 6:  # Sunday
+        return today - timedelta(days=2)
+    else:
+        return today
 
 
 # Function to calculate the implied volatility surface
 def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
+    # Get the current date and find the most recent market day
+    today = datetime.now()
+    recent_market_day = get_recent_market_day(today)
+    today = recent_market_day  # Ensure 'today' is a market day
     start_date = today.strftime('%Y-%m-%d')
 
     # Fetch stock data
     stock_data = yf.download(ticker, start=start_date)
+    if stock_data.empty:
+        st.error(f"No stock data available for {ticker} on {start_date}.")
+        return None
     S0 = stock_data['Close'].iloc[-1]
 
     # Fetch option data
@@ -65,7 +80,7 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
     # Filter the data to strikes within 20% of the current stock price
     df_option_data = df_option_data[(S0 * 0.8 < df_option_data['strike']) & (df_option_data['strike'] < S0 * 1.2)]
 
-    # Calculate days to expiry
+    # Calculate days to expiry using 'today' as the most recent market day
     df_option_data['days_to_expiry'] = pd.to_datetime(df_option_data['expiration_date'])
     df_option_data['expiration_date'] = (df_option_data['days_to_expiry'] - today).dt.days
 
@@ -94,9 +109,17 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
         T = index[0] / 365
         K = index[1]
         sigma0 = sigma
-        implied_volatility = fsolve(BlackScholesModel, sigma0, args=(S0, K, value, T, rfr, option_type), xtol=tolerance)
-        implied_volatility_scalar = float(implied_volatility[0])
-        implied_volatility_df.append(implied_volatility_scalar)
+        try:
+            implied_volatility = fsolve(
+                BlackScholesModel, sigma0,
+                args=(S0, K, value, T, rfr, option_type),
+                xtol=tolerance
+            )
+            implied_volatility_scalar = float(implied_volatility[0])
+            implied_volatility_df.append(implied_volatility_scalar)
+        except Exception as e:
+            st.error(f"Error calculating implied volatility for strike {K} and expiry {index[0]}: {e}")
+            implied_volatility_df.append(np.nan)
 
     # Convert implied volatility list to a DataFrame with the original index
     implied_volatility_df_indexed = pd.Series(implied_volatility_df, index=df_option_data[option_type].index)
@@ -105,6 +128,7 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
     df_interpolated = implied_volatility_df_indexed.unstack(0).interpolate(method='linear')
 
     return df_interpolated
+
 
 # Function to plot the implied volatility surface
 def plot_implied_volatility_surface(vol_surface):
@@ -140,10 +164,17 @@ def plot_implied_volatility_surface(vol_surface):
     ax.xaxis.pane.set_edgecolor('#555555')
     ax.yaxis.pane.set_edgecolor('#555555')
     ax.zaxis.pane.set_edgecolor('#555555')
+    ax.tick_params(axis='x', colors='#FFFFFF')
+    ax.tick_params(axis='y', colors='#FFFFFF')
+    ax.tick_params(axis='z', colors='#FFFFFF')
+    ax.xaxis.set_tick_params(labelcolor='#FFFFFF')
+    ax.yaxis.set_tick_params(labelcolor='#FFFFFF')
+    ax.zaxis.set_tick_params(labelcolor='#FFFFFF')
 
 
     # Plot the surface
     surf = ax.plot_surface(X, Y, Z, cmap='viridis', edgecolor='#657383', linewidth=0.02, antialiased=False)
+
 
     # Add labels and title
     ax.set_xlabel('Time to Expiry (Days)', weight = 'bold')
@@ -151,7 +182,16 @@ def plot_implied_volatility_surface(vol_surface):
     ax.set_zlabel('Implied Volatility', weight = 'bold')
     ax.set_title(f'Volatility Surface for {ticker.upper()} {option_type.capitalize()} Options', weight='bold', size ='20')
     # Add a color bar
-    fig.colorbar(surf, shrink=0.5, aspect=5)
+    # Create the color bar (assuming 'surf' is your surface plot object)
+    color_bar = fig.colorbar(surf, ax=ax, shrink=0.5, aspect=5)  # Adjust 'shrink' and 'aspect' to fit your layout
+
+    # Add a label to the color bar
+    color_bar.set_label('Implied Volatility', color='#FFFFFF', fontsize=12, labelpad=15, weight='bold')
+
+    # Set the tick parameters (optional customization)
+    color_bar.ax.tick_params(labelsize=10, labelcolor='#FFFFFF')
+
+
 
     # Display the plot in Streamlit
     st.pyplot(fig)

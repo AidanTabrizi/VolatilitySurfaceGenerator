@@ -48,6 +48,7 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
         st.error(f"No stock data available for {ticker} on {start_date}.")
         return None
     S0 = stock_data['Close'].iloc[-1]
+    today = stock_data.index[-1]
 
     # Fetch option data
     ticker_info = yf.Ticker(ticker)

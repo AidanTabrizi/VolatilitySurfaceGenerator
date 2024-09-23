@@ -37,7 +37,7 @@ def get_recent_market_day(today):
 # Function to calculate the implied volatility surface
 def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
     # Get the current date and find the most recent market day
-    today = datetime.now()
+    today = datetime.date()
     recent_market_day = get_recent_market_day(today)
     today = recent_market_day  # Ensure 'today' is a market day
     start_date = today.strftime('%Y-%m-%d')

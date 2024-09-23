@@ -27,9 +27,9 @@ st.markdown(
 # Function to find the most recent market day if today is a weekend
 def get_recent_market_day(today):
     if today.weekday() == 5:  # Saturday
-        return today - timedelta(days=1)
-    elif today.weekday() == 6:  # Sunday
         return today - timedelta(days=2)
+    elif today.weekday() == 6:  # Sunday
+        return today - timedelta(days=3)
     else:
         return today
 

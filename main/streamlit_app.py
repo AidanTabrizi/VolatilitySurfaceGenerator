@@ -6,8 +6,7 @@ from datetime import datetime, timedelta
 from scipy.optimize import fsolve
 from scipy.stats import norm
 import matplotlib.pyplot as plt
-import pandas_market_calendars as mcal
-from mpl_toolkits.mplot3d import Axes3D
+
 
 st.markdown(
     """

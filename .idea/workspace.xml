@@ -4,14 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="8699fd99-2a4d-4f86-b8ec-cd8194afa221" name="Changes" comment="Update to fix issues when running script on weekends when markets are closed">
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/main/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/main/requirements.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/main/streamlit_app.py" beforeDir="false" afterPath="$PROJECT_DIR$/main/streamlit_app.py" afterDir="false" />
-    </list>
+    <list default="true" id="8699fd99-2a4d-4f86-b8ec-cd8194afa221" name="Changes" comment="Update to fix issues when running script on weekends when markets are closed" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -120,7 +113,7 @@
       <workItem from="1727041358752" duration="208000" />
       <workItem from="1727041746118" duration="1076000" />
       <workItem from="1727043200197" duration="9821000" />
-      <workItem from="1727062731612" duration="698000" />
+      <workItem from="1727062731612" duration="1000000" />
     </task>
     <task id="LOCAL-00001" summary="s">
       <option name="closed" value="true" />
@@ -306,7 +299,15 @@
       <option name="project" value="LOCAL" />
       <updated>1727063434789</updated>
     </task>
-    <option name="localTasksCounter" value="24" />
+    <task id="LOCAL-00024" summary="Update to fix issues when running script on weekends when markets are closed">
+      <option name="closed" value="true" />
+      <created>1727063475155</created>
+      <option name="number" value="00024" />
+      <option name="presentableId" value="LOCAL-00024" />
+      <option name="project" value="LOCAL" />
+      <updated>1727063475155</updated>
+    </task>
+    <option name="localTasksCounter" value="25" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -375,7 +376,7 @@
     <SUITE FILE_PATH="coverage/VolatilitySurfaceGenerator$yahooIV.coverage" NAME="yahooIV Coverage Results" MODIFIED="1726877396911" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/main" />
     <SUITE FILE_PATH="coverage/VolatilitySurfaceGenerator$HestonFFT.coverage" NAME="HestonFFT Coverage Results" MODIFIED="1726855639481" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/main" />
     <SUITE FILE_PATH="coverage/VolatilitySurfaceGenerator$Heston2.coverage" NAME="Heston2 Coverage Results" MODIFIED="1726855255584" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/main" />
-    <SUITE FILE_PATH="coverage/VolatilitySurfaceGenerator$streamlit_app.coverage" NAME="streamlit_app Coverage Results" MODIFIED="1727060313983" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/main" />
+    <SUITE FILE_PATH="coverage/VolatilitySurfaceGenerator$streamlit_app.coverage" NAME="streamlit_app Coverage Results" MODIFIED="1727063364251" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/main" />
     <SUITE FILE_PATH="coverage/VolatilitySurfaceGenerator$sd.coverage" NAME="sd Coverage Results" MODIFIED="1727057294108" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/main" />
     <SUITE FILE_PATH="coverage/VolatilitySurfaceGenerator$bruh.coverage" NAME="bruh Coverage Results" MODIFIED="1726857217587" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/main" />
     <SUITE FILE_PATH="coverage/VolatilitySurfaceGenerator$config_toml.coverage" NAME="config.toml Coverage Results" MODIFIED="1726866132680" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/main/.streamlit" />

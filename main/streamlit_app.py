@@ -27,21 +27,19 @@ st.markdown(
 
 # Function to find the most recent market day if today is a weekend
 def get_recent_market_day(today):
-    # Use the NYSE calendar; you can adjust to other exchanges if needed
-    nyse = mcal.get_calendar('NYSE')
-
-    # Get a range of trading days around today's date
-    schedule = nyse.valid_days(start_date=today - timedelta(days=7), end_date=today)
-
-    # Find the most recent valid trading day before or equal to today
-    recent_market_day = max(schedule[schedule <= today])
-
-    return recent_market_day
+    # If today is Saturday, go back to Friday
+    if today.weekday() == 5:  # Saturday
+        return today - timedelta(days=1)
+    # If today is Sunday, go back to Friday
+    elif today.weekday() == 6:  # Sunday
+        return today - timedelta(days=2)
+    else:
+        return today
 
 # Function to calculate the implied volatility surface
 def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
     # Get the current date and find the most recent market day
-    today = datetime.now().date()
+    today = datetime.now()
     recent_market_day = get_recent_market_day(today)
     start_date = recent_market_day.strftime('%Y-%m-%d')
 

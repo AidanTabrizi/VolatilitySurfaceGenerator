@@ -25,7 +25,13 @@ st.markdown(
 )
 
 # Function to find the most recent market day if today is a weekend
-def get_recent_market_day(today):
+import pytz
+
+# Function to find the most recent market day if today is a weekend
+def get_recent_market_day():
+    # Use the current date in US Eastern Time
+    eastern = pytz.timezone('US/Eastern')
+    today = datetime.now(eastern).date()
     # If today is Saturday, go back to Friday
     if today.weekday() == 5:  # Saturday
         return today - timedelta(days=1)
@@ -38,8 +44,7 @@ def get_recent_market_day(today):
 # Function to calculate the implied volatility surface
 def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
     # Get the current date and find the most recent market day
-    today = datetime.now()
-    recent_market_day = get_recent_market_day(today)
+    recent_market_day = get_recent_market_day()
     start_date = recent_market_day.strftime('%Y-%m-%d')
 
     # Fetch stock data
@@ -48,7 +53,7 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
         st.error(f"No stock data available for {ticker} on {start_date}.")
         return None
     S0 = stock_data['Close'].iloc[-1]
-    today = stock_data.index[-1]
+    today = stock_data.index[-1]  # Update 'today' to be the last date in stock_data
 
     # Fetch option data
     ticker_info = yf.Ticker(ticker)

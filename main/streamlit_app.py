@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from scipy.optimize import fsolve
 from scipy.stats import norm
 import matplotlib.pyplot as plt
+import pandas_market_calendars as mcal
 from mpl_toolkits.mplot3d import Axes3D
 
 st.markdown(
@@ -26,13 +27,16 @@ st.markdown(
 
 # Function to find the most recent market day if today is a weekend
 def get_recent_market_day(today):
-    # Ensure today does not exceed the current date and handle weekends
-    today = min(today, datetime.now().date())
-    if today.weekday() == 5:  # Saturday
-        return today - timedelta(days=1)
-    elif today.weekday() == 6:  # Sunday
-        return today - timedelta(days=2)
-    return today
+    # Use the NYSE calendar; you can adjust to other exchanges if needed
+    nyse = mcal.get_calendar('NYSE')
+
+    # Get a range of trading days around today's date
+    schedule = nyse.valid_days(start_date=today - timedelta(days=7), end_date=today)
+
+    # Find the most recent valid trading day before or equal to today
+    recent_market_day = max(schedule[schedule <= today])
+
+    return recent_market_day
 
 # Function to calculate the implied volatility surface
 def volatility_solver(ticker, rfr, option_type, sigma, tolerance):

@@ -27,9 +27,9 @@ st.markdown(
 # Function to find the most recent market day if today is a weekend
 def get_recent_market_day(today):
     if today.weekday() == 5:  # Saturday
-        return today - timedelta(days=2)
+        return today - timedelta(days=1)
     elif today.weekday() == 6:  # Sunday
-        return today - timedelta(days=3)
+        return today - timedelta(days=2)
     else:
         return today
 
@@ -37,8 +37,8 @@ def get_recent_market_day(today):
 # Function to calculate the implied volatility surface
 def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
     # Get the current date and find the most recent market day
-    today = datetime.now()
-    recent_market_day = get_recent_market_day(today)
+    tod = datetime.now()
+    recent_market_day = get_recent_market_day(tod)
     today = recent_market_day  # Ensure 'today' is a market day
     start_date = today.strftime('%Y-%m-%d')
 

@@ -125,6 +125,9 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
 
 
         return delta, gamma, theta, vega, rho
+    except Exception as  e:
+        st.error(f"Error calculating Greeks: {e}")
+        return np.nan, np.nan, np.nan, np.nan, np.nan
 
     greeks_df = []
 

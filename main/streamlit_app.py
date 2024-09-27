@@ -261,7 +261,7 @@ def plot_implied_volatility_surface(vol_surface, greek_surface, greek_parameter)
 
 # Streamlit UI
 with st.sidebar:
-    st.title("Black Scholes Volatility Surface Generator")
+    st.title("Volatility Surface Generator")
     st.write("`Created by:`")
     linkedin_url = "https://www.linkedin.com/in/aidan-tabrizi/"
     st.markdown(f'<a href="{linkedin_url}" target="_blank" style="text-decoration: none; color: inherit;"><img src="https://cdn-icons-png.flaticon.com/512/174/174857.png" width="25" height="25" style="vertical-align: middle; margin-right: 10px;">`Aidan Tabrizi`</a>', unsafe_allow_html=True)
@@ -274,7 +274,7 @@ risk_free_rate = st.sidebar.number_input("Risk-Free Rate:", value=0.04)
 # Added input field for initial volatility guess
 sigma = st.sidebar.number_input("Initial Volatility Guess:", value=0.4, step=0.01)
 tolerance = 1e-9  # Tolerance for the solver
-st.sidebar.write("Visualize the volatility surface for a call or put option of any chosen security! Just enter the ticker symbol, select the option type, input the risk-free rate, and provide an initial guess for volatility. Using market option prices from Yahoo Finance, the implied volatility is calculated with the Black Scholes model and plotted via Matplotlib.")
+st.sidebar.write("Visualize the volatility surface and option Greeks (Delta, Gamma, Theta, Vega, Rho) for a call or put option of any chosen security! Just enter the ticker symbol, select the option type, input the risk-free rate, provide an initial guess for volatility, and choose a Greek parameter to overlay on the surface. Using market option prices from Yahoo Finance, the implied volatility is calculated with the Black-Scholes model, and the results are plotted via Matplotlib with interactive heatmaps to enhance analysis and understanding.")
 
 # Main Content
 

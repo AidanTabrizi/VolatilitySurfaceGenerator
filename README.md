@@ -16,6 +16,10 @@ This project is a web application designed to plot the implied volatility surfac
 
 
 ## Requirements:
-- `yfinance` to fetch market data
-- `numpy` for numerical calculations
-- `matplotlib` to create and display 3D plots of the implied volatility surface
+- `streamlit` to create the web application interface and handle user inputs
+- `yfinance` to fetch real-time market data, including stock prices and option chains
+- `numpy` for numerical calculations and data manipulation
+- `pandas` for organizing and manipulating data, especially for handling option data in tabular form
+- `matplotlib` to create and display 3D plots of the implied volatility surface and heatmaps of Greeks
+- `datetime` to handle dates and calculate days to expiration for options
+- `scipy` to solve for implied volatility and to access cumulative/probability density functions

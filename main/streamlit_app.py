@@ -190,13 +190,30 @@ def plot_implied_volatility_surface(vol_surface, greek_surface, greek_parameter)
     Z = vol_surface.values
     C = greek_surface[greek_parameter].values
 
-   # Debug: Check range of Greek values
-    st.write(f"{greek_parameter} values range: min={C.min()}, max={C.max()}")
-
-    # Set dynamic normalization based on the Greek parameter
-    norm = Normalize(vmin=C.min(), vmax=C.max())  # Dynamically adjust to min and max of Greek values
-    cmap = 'plasma'  # Set a default colormap
-
+    # Set appropriate normalization based on the Greek parameter
+    if greek_parameter == 'DELTA':
+        if option_type == 'PUT':
+            norm = Normalize(vmin=-1, vmax=0)
+            cmap = 'plasma_r'
+        else:
+            norm = Normalize(vmin=0, vmax=1)
+            cmap = 'plasma'
+    elif greek_parameter == 'GAMMA':
+        norm = Normalize(vmin=min(C.min(), 0), vmax=max(C.max(), 0.2))
+        cmap = 'plasma'
+    elif greek_parameter == 'THETA':
+        norm = Normalize(vmin=min(C.min(), -0.5), vmax=max(C.max(), 0))
+        cmap = 'plasma_r'
+    elif greek_parameter == 'VEGA':
+        norm = Normalize(vmin=min(C.min(), 0), vmax=max(C.max(), 0.5))
+        cmap = 'plasma'
+    elif greek_parameter == 'RHO':
+        if option_type == 'PUT':
+            norm = Normalize(vmin=-0.5, vmax=0)
+            cmap = 'plasma_r'
+        else:
+            norm = Normalize(vmin=0, vmax=0.5)
+            cmap = 'plasma'
     # Create the figure and axes
     fig = plt.figure(figsize=(16, 8))
     ax = fig.add_subplot(111, projection='3d')
@@ -213,16 +230,18 @@ def plot_implied_volatility_surface(vol_surface, greek_surface, greek_parameter)
     ax.yaxis.set_tick_params(labelcolor='#FFFFFF')
     ax.zaxis.set_tick_params(labelcolor='#FFFFFF')
 
+
     colormap = plt.colormaps.get_cmap(cmap)
 
     # Plot the surface
-    surf = ax.plot_surface(X, Y, Z, facecolors=colormap(norm(C)), rstride=1, cstride=1, edgecolor='#657383', linewidth=0.02, antialiased=False)
+    surf = ax.plot_surface(X, Y, Z, facecolors=colormap(norm(C)), rstride=1,cstride=1, edgecolor='#657383', linewidth=0.02, antialiased=False)
+
 
     # Add labels and title
-    ax.set_xlabel('Time to Expiry (Days)', weight='bold')
-    ax.set_ylabel('Strike Price (USD)', weight='bold')
-    ax.set_zlabel('Implied Volatility', weight='bold')
-    ax.set_title(f'Volatility Surface with {greek_parameter.capitalize()} for {ticker.upper()} {option_type.capitalize()} Options', weight='bold', size='20')
+    ax.set_xlabel('Time to Expiry (Days)', weight = 'bold')
+    ax.set_ylabel('Strike Price (USD)', weight = 'bold')
+    ax.set_zlabel('Implied Volatility', weight = 'bold')
+    ax.set_title(f'Volatility Surface with {greek_parameter.capitalize()} for {ticker.upper()} {option_type.capitalize()} Options', weight='bold', size ='20')
 
     # Add a color bar
     mappable = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
@@ -234,6 +253,8 @@ def plot_implied_volatility_surface(vol_surface, greek_surface, greek_parameter)
 
     # Set the tick parameters (optional customization)
     color_bar.ax.tick_params(labelsize=10, labelcolor='#FFFFFF')
+
+
 
     # Display the plot in Streamlit
     st.pyplot(fig)

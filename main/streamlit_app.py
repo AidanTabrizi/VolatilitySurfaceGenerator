@@ -166,10 +166,10 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
 # Function to plot the implied volatility surface
 def plot_implied_volatility_surface(vol_surface, greek_surface, greek_parameter):
     custom_style = {
-        'axes.facecolor': '#000000',  # Background color of the plot
+        'axes.facecolor': '#0E1118',  # Background color of the plot
         'axes.edgecolor': '#FFFFFF',  # Edge color of the plot
         'axes.labelcolor': '#FFFFFF',  # Color of x, y, z axis labels
-        'figure.facecolor': '#000000',  # Background color of the figure
+        'figure.facecolor': '#0E1118',  # Background color of the figure
         'grid.color': '#555555',  # Color of grid lines, slightly brighter for better contrast
         'text.color': '#FFFFFF',  # Text color
         'axes.titleweight': 'bold',  # Title weight

@@ -110,17 +110,19 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
     def calculate_greeks(S0, K, T, r, sigma, option_type):
         d1 = (np.log(S0 / K) + (r + sigma ** 2 / 2) * T) / (sigma * np.sqrt(T))
         d2 = d1 - sigma * np.sqrt(T)
-        N_d1 = norm.cdf(d1) if option_type == 'CALL' else norm.cdf(-d1)
-        N_d2 = norm.cdf(d2) if option_type == 'CALL' else norm.cdf(-d2)
 
-        delta = N_d1 if option_type == 'CALL' else N_d1 - 1
+        if option_type == 'CALL':
+            delta = norm.cdf(d1)
+            rho = K * T * np.exp(-r * T) * norm.cdf(d2) / 100
+        elif option_type == 'PUT':
+            delta = norm.cdf(d1) - 1
+            rho = -K * T * np.exp(-r * T) * norm.cdf(-d2) / 100
+
         gamma = norm.pdf(d1) / (S0 * sigma * np.sqrt(T))
-        theta = - (S0 * norm.pdf(d1) * sigma) / (2 * np.sqrt(T)) - r * K * np.exp(-r * T) * N_d2
+        theta = - (S0 * norm.pdf(d1) * sigma / (2 * np.sqrt(T)) - r * K * np.exp(-r * T) * (norm.cdf(d2) if option_type == 'CALL' else norm.cdf(-d2)))
         theta = theta / 365
         vega = S0 * norm.pdf(d1) * np.sqrt(T) / 100
-        rho = K * T * np.exp(-r * T) * N_d2 / 100
-        if option_type == 'PUT':
-            rho = -rho
+
 
         return delta, gamma, theta, vega, rho
 
@@ -139,8 +141,12 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
             )
             implied_volatility_scalar = float(implied_volatility[0])
             delta, gamma, theta, vega, rho = calculate_greeks(S0, K, T, rfr, implied_volatility_scalar, option_type)
-            implied_volatility_df.append(implied_volatility_scalar)
-            greeks_df.append([delta, gamma, theta, vega, rho])
+            if 0 < implied_volatility_scalar < 5:
+                implied_volatility_df.append(implied_volatility_scalar)
+                greeks_df.append([delta, gamma, theta, vega, rho])
+            else:
+                implied_volatility_df.append(np.nan)
+                greeks_df.append([np.nan, np.nan, np.nan, np.nan, np.nan])
         except Exception as e:
             st.error(f"Error calculating implied volatility for strike {K} and expiry {index[0]}: {e}")
             implied_volatility_df.append(np.nan)
@@ -160,10 +166,10 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
 # Function to plot the implied volatility surface
 def plot_implied_volatility_surface(vol_surface, greek_surface, greek_parameter):
     custom_style = {
-        'axes.facecolor': '#0E1118',  # Background color of the plot
+        'axes.facecolor': '#000000',  # Background color of the plot
         'axes.edgecolor': '#FFFFFF',  # Edge color of the plot
         'axes.labelcolor': '#FFFFFF',  # Color of x, y, z axis labels
-        'figure.facecolor': '#0E1118',  # Background color of the figure
+        'figure.facecolor': '#000000',  # Background color of the figure
         'grid.color': '#555555',  # Color of grid lines, slightly brighter for better contrast
         'text.color': '#FFFFFF',  # Text color
         'axes.titleweight': 'bold',  # Title weight

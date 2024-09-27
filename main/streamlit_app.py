@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from scipy.optimize import fsolve
 from scipy.stats import norm
 import matplotlib.pyplot as plt
-
+from matplotlib.colors import Normalize, TwoSlopeNorm
 
 st.markdown(
     """
@@ -107,6 +107,24 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
 
     # List to hold implied volatilities
     implied_volatility_df = []
+    def calculate_greeks(S0, K, T, r, sigma, option_type):
+        d1 = (np.log(S0 / K) + (r + sigma ** 2 / 2) * T) / (sigma * np.sqrt(T))
+        d2 = d1 - sigma * np.sqrt(T)
+        N_d1 = norm.cdf(d1) if option_type == 'CALL' else norm.cdf(-d1)
+        N_d2 = norm.cdf(d2) if option_type == 'CALL' else norm.cdf(-d2)
+
+        delta = N_d1 if option_type == 'CALL' else N_d1 - 1
+        gamma = norm.pdf(d1) / (S0 * sigma * np.sqrt(T))
+        theta = - (S0 * norm.pdf(d1) * sigma) / (2 * np.sqrt(T)) - r * K * np.exp(-r * T) * N_d2
+        theta = theta / 365
+        vega = S0 * norm.pdf(d1) * np.sqrt(T) / 100
+        rho = K * T * np.exp(-r * T) * N_d2 / 100
+        if option_type == 'PUT':
+            rho = -rho
+
+        return delta, gamma, theta, vega, rho
+
+    greeks_df = []
 
     # Calculate implied volatility for each option
     for index, value in df_option_data[option_type].items():
@@ -120,22 +138,27 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
                 xtol=tolerance
             )
             implied_volatility_scalar = float(implied_volatility[0])
+            delta, gamma, theta, vega, rho = calculate_greeks(S0, K, T, rfr, implied_volatility_scalar, option_type)
             implied_volatility_df.append(implied_volatility_scalar)
+            greeks_df.append([delta, gamma, theta, vega, rho])
         except Exception as e:
             st.error(f"Error calculating implied volatility for strike {K} and expiry {index[0]}: {e}")
             implied_volatility_df.append(np.nan)
+            greeks_df.append([np.nan, np.nan, np.nan, np.nan, np.nan])
 
     # Convert implied volatility list to a DataFrame with the original index
     implied_volatility_df_indexed = pd.Series(implied_volatility_df, index=df_option_data[option_type].index)
+    greeks_df_indexed = pd.DataFrame(greeks_df, index=df_option_data[option_type].index, columns=['DELTA', 'GAMMA', 'THETA', 'VEGA', 'RHO'])
 
     # Interpolate missing values
     df_interpolated = implied_volatility_df_indexed.unstack(0).interpolate(method='linear')
+    greeks_interpolated = greeks_df_indexed.unstack(0).interpolate(method='linear')
 
-    return df_interpolated
+    return df_interpolated, greeks_interpolated
 
 
 # Function to plot the implied volatility surface
-def plot_implied_volatility_surface(vol_surface):
+def plot_implied_volatility_surface(vol_surface, greek_surface, greek_parameter):
     custom_style = {
         'axes.facecolor': '#000000',  # Background color of the plot
         'axes.edgecolor': '#FFFFFF',  # Edge color of the plot
@@ -153,12 +176,38 @@ def plot_implied_volatility_surface(vol_surface):
         'figure.autolayout': True,  # Automatically adjust the layout
     }
     plt.rcParams.update(custom_style)
+
     # Prepare data for plotting
     X = vol_surface.columns.values  # Expiry times
     Y = vol_surface.index.values    # Strike prices
     X, Y = np.meshgrid(X, Y)
     Z = vol_surface.values
+    C = greek_surface[greek_parameter].values
 
+    # Set appropriate normalization based on the Greek parameter
+    if greek_parameter == 'DELTA':
+        if option_type == 'PUT':
+            norm = Normalize(vmin=-1, vmax=0)
+            cmap = 'plasma_r'
+        else:
+            norm = Normalize(vmin=0, vmax=1)
+            cmap = 'plasma'
+    elif greek_parameter == 'GAMMA':
+        norm = Normalize(vmin=min(C.min(), 0), vmax=max(C.max(), 0.2))
+        cmap = 'plasma'
+    elif greek_parameter == 'THETA':
+        norm = Normalize(vmin=min(C.min(), -0.5), vmax=max(C.max(), 0))
+        cmap = 'plasma_r'
+    elif greek_parameter == 'VEGA':
+        norm = Normalize(vmin=min(C.min(), 0), vmax=max(C.max(), 0.5))
+        cmap = 'plasma'
+    elif greek_parameter == 'RHO':
+        if option_type == 'PUT':
+            norm = Normalize(vmin=-0.5, vmax=0)
+            cmap = 'plasma_r'
+        else:
+            norm = Normalize(vmin=0, vmax=0.5)
+            cmap = 'plasma'
     # Create the figure and axes
     fig = plt.figure(figsize=(16, 8))
     ax = fig.add_subplot(111, projection='3d')
@@ -176,21 +225,25 @@ def plot_implied_volatility_surface(vol_surface):
     ax.zaxis.set_tick_params(labelcolor='#FFFFFF')
 
 
+    colormap = plt.colormaps.get_cmap(cmap)
+
     # Plot the surface
-    surf = ax.plot_surface(X, Y, Z, cmap='viridis', edgecolor='#657383', linewidth=0.02, antialiased=False)
+    surf = ax.plot_surface(X, Y, Z, facecolors=colormap(norm(C)), rstride=1,cstride=1, edgecolor='#657383', linewidth=0.02, antialiased=False)
 
 
     # Add labels and title
     ax.set_xlabel('Time to Expiry (Days)', weight = 'bold')
     ax.set_ylabel('Strike Price (USD)', weight = 'bold')
     ax.set_zlabel('Implied Volatility', weight = 'bold')
-    ax.set_title(f'Volatility Surface for {ticker.upper()} {option_type.capitalize()} Options', weight='bold', size ='20')
+    ax.set_title(f'Volatility Surface with {greek_parameter.capitalize()} for {ticker.upper()} {option_type.capitalize()} Options', weight='bold', size ='20')
+
     # Add a color bar
-    # Create the color bar (assuming 'surf' is your surface plot object)
-    color_bar = fig.colorbar(surf, ax=ax, shrink=0.5, aspect=5)  # Adjust 'shrink' and 'aspect' to fit your layout
+    mappable = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    mappable.set_array(C)
+    color_bar = fig.colorbar(mappable, ax=ax, shrink=0.5, aspect=5)  # Adjust 'shrink' and 'aspect' to fit your layout
 
     # Add a label to the color bar
-    color_bar.set_label('Implied Volatility', color='#FFFFFF', fontsize=12, labelpad=15, weight='bold')
+    color_bar.set_label(f'{greek_parameter.capitalize()}', color='#FFFFFF', fontsize=12, labelpad=15, weight='bold')
 
     # Set the tick parameters (optional customization)
     color_bar.ax.tick_params(labelsize=10, labelcolor='#FFFFFF')
@@ -210,6 +263,7 @@ with st.sidebar:
 # Input fields in the sidebar
 ticker = st.sidebar.text_input('Ticker Symbol:', value='AAPL')
 option_type = st.sidebar.selectbox('Option Type:', ['CALL', 'PUT'])
+greek_parameter = st.sidebar.selectbox('Heatmap Parameter:', ['DELTA','GAMMA','THETA','VEGA','RHO'])
 risk_free_rate = st.sidebar.number_input("Risk-Free Rate:", value=0.04)
 # Added input field for initial volatility guess
 sigma = st.sidebar.number_input("Initial Volatility Guess:", value=0.4, step=0.01)
@@ -223,10 +277,10 @@ st.sidebar.write("Visualize the volatility surface for a call or put option of a
 if ticker and option_type:
     with st.spinner('Calculating implied volatility surface...'):
         try:
-            implied_vol_surface = volatility_solver(ticker, risk_free_rate, option_type, sigma, tolerance)
+            implied_vol_surface, greeks_surface = volatility_solver(ticker, risk_free_rate, option_type, sigma, tolerance)
             if implied_vol_surface is not None and not implied_vol_surface.empty:
                 st.success('Calculation complete!')
-                plot_implied_volatility_surface(implied_vol_surface)
+                plot_implied_volatility_surface(implied_vol_surface, greeks_surface, greek_parameter)
             else:
                 st.error("Failed to calculate implied volatility surface.")
         except Exception as e:

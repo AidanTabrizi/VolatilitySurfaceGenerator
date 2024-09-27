@@ -297,10 +297,7 @@ if ticker and option_type:
             if implied_vol_surface is not None and not implied_vol_surface.empty:
                 st.success('Calculation complete!')
                 plot_implied_volatility_surface(implied_vol_surface, greeks_surface, greek_parameter)
-            if greeks_surface is not None:
-                gamma_values = greeks_surface['GAMMA']
-                st.write("Gamma Values:")
-                st.write(gamma_values)
+
             else:
                 st.error("Failed to calculate implied volatility surface.")
         except Exception as e:

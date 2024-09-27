@@ -108,6 +108,7 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
     # List to hold implied volatilities
     implied_volatility_df = []
     def calculate_greeks(S0, K, T, r, sigma, option_type):
+    try:
         d1 = (np.log(S0 / K) + (r + sigma ** 2 / 2) * T) / (sigma * np.sqrt(T))
         d2 = d1 - sigma * np.sqrt(T)
 
@@ -118,16 +119,22 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
             delta = norm.cdf(d1) - 1
             rho = -K * T * np.exp(-r * T) * norm.cdf(-d2) / 100
 
-        gamma = norm.pdf(d1) / (S0 * sigma * np.sqrt(T))
+        # Calculate Gamma safely, avoiding division by zero or extreme values
+        if sigma > 0 and T > 0:
+            gamma = norm.pdf(d1) / (S0 * sigma * np.sqrt(T))
+        else:
+            gamma = np.nan  # Assign NaN if sigma or T are not suitable
+
         theta = - (S0 * norm.pdf(d1) * sigma / (2 * np.sqrt(T)) - r * K * np.exp(-r * T) * (norm.cdf(d2) if option_type == 'CALL' else norm.cdf(-d2)))
         theta = theta / 365
         vega = S0 * norm.pdf(d1) * np.sqrt(T) / 100
 
-
         return delta, gamma, theta, vega, rho
-    except Exception as  e:
+    except Exception as e:
+        # Handle exceptions and return NaN for the Greeks if computation fails
         st.error(f"Error calculating Greeks: {e}")
         return np.nan, np.nan, np.nan, np.nan, np.nan
+
 
     greeks_df = []
 

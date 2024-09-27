@@ -205,7 +205,7 @@ def plot_implied_volatility_surface(vol_surface, greek_surface, greek_parameter)
         norm = Normalize(vmin=min(C.min(), -0.5), vmax=max(C.max(), 0))
         cmap = 'plasma_r'
     elif greek_parameter == 'VEGA':
-        norm = Normalize(vmin=min(-200, 0), vmax=max(C.max(), 200))
+        norm = Normalize(vmin=min(C.min(), 0), vmax=max(C.max(), 0.5))
         cmap = 'plasma'
     elif greek_parameter == 'RHO':
         if option_type == 'PUT':

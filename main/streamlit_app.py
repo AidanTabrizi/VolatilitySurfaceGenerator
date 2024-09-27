@@ -170,6 +170,8 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
     df_interpolated = implied_volatility_df_indexed.unstack(0).interpolate(method='linear')
     greeks_interpolated = greeks_df_indexed.unstack(0).interpolate(method='linear')
 
+    greeks_interpolated = greeks_interpolated.fillna(0)
+    
     return df_interpolated, greeks_interpolated
 
 

@@ -24,7 +24,16 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-
+def fetch_stock_data(ticker, start_date, max_attempts=5):
+    attempt = 0
+    while attempt < max_attempts:
+        stock_data = yf.download(ticker, start=start_date)
+        if not stock_data.empty:
+            return stock_data
+        else:
+            start_date -= timedelta(days=1)  # Go back one day if no data is found
+            attempt += 1
+    return None  # Return None if all attempts fail
 # Function to find the most recent market day if today is a weekend
 def get_recent_market_day():
     # Use the current date in US Eastern Time
@@ -46,7 +55,7 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
     start_date = recent_market_day.strftime('%Y-%m-%d')
 
     # Fetch stock data
-    stock_data = yf.download(ticker, start=start_date)
+    stock_data = fetch_stock_data(ticker, recent_market_day)
     if stock_data.empty:
         st.error(f"No stock data available for {ticker} on {start_date}.")
         return None

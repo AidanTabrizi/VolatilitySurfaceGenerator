@@ -24,14 +24,12 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Function to find the most recent market day if today is a weekend
-import pytz
 
 # Function to find the most recent market day if today is a weekend
 def get_recent_market_day():
     # Use the current date in US Eastern Time
-    eastern = pytz.timezone('US/Eastern')
-    today = datetime.now(eastern).date()
+
+    today = datetime.today().date()
     # If today is Saturday, go back to Friday
     if today.weekday() == 5:  # Saturday
         return today - timedelta(days=1)

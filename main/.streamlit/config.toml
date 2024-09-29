@@ -1,6 +1,0 @@
-[theme]
-primaryColor = "#000000"  # Change this to your preferred primary color
-backgroundColor = "#000000"  # Change this to set a different background color
-secondaryBackgroundColor = "dark_gray"  # Color for the sidebar
-textColor = "#FAFAFA"  # Text color for the main content
-font = "sans serif"  # Font choice (can be sans serif, serif, or monospace)

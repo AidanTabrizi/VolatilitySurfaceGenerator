@@ -106,23 +106,33 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
     # List to hold implied volatilities
     implied_volatility_df = []
     def calculate_greeks(S0, K, T, r, sigma, option_type):
-        d1 = (np.log(S0 / K) + (r + sigma ** 2 / 2) * T) / (sigma * np.sqrt(T))
-        d2 = d1 - sigma * np.sqrt(T)
+        try:
+            d1 = (np.log(S0 / K) + (r + sigma ** 2 / 2) * T) / (sigma * np.sqrt(T))
+            d2 = d1 - sigma * np.sqrt(T)
+    
+            if option_type == 'CALL':
+                delta = norm.cdf(d1)
+                rho = K * T * np.exp(-r * T) * norm.cdf(d2) / 100
+            elif option_type == 'PUT':
+                delta = norm.cdf(d1) - 1
+                rho = -K * T * np.exp(-r * T) * norm.cdf(-d2) / 100
+    
+            # Calculate Gamma safely, avoiding division by zero or extreme values
+            if sigma > 0 and T > 0:
+                gamma = norm.pdf(d1) / (S0 * sigma * np.sqrt(T))
+            else:
+                gamma = np.nan  # Assign NaN if sigma or T are not suitable
+    
+            theta = - (S0 * norm.pdf(d1) * sigma / (2 * np.sqrt(T)) - r * K * np.exp(-r * T) * (norm.cdf(d2) if option_type == 'CALL' else norm.cdf(-d2)))
+            theta = theta / 365
+            vega = S0 * norm.pdf(d1) * np.sqrt(T) / 100
+    
+            return delta, gamma, theta, vega, rho
+        except Exception as e:
+            # Handle exceptions and return NaN for the Greeks if computation fails
+            st.error(f"Error calculating Greeks: {e}")
+            return np.nan, np.nan, np.nan, np.nan, np.nan
 
-        if option_type == 'CALL':
-            delta = norm.cdf(d1)
-            rho = K * T * np.exp(-r * T) * norm.cdf(d2) / 100
-        elif option_type == 'PUT':
-            delta = norm.cdf(d1) - 1
-            rho = -K * T * np.exp(-r * T) * norm.cdf(-d2) / 100
-
-        gamma = norm.pdf(d1) / (S0 * sigma * np.sqrt(T))
-        theta = - (S0 * norm.pdf(d1) * sigma / (2 * np.sqrt(T)) - r * K * np.exp(-r * T) * (norm.cdf(d2) if option_type == 'CALL' else norm.cdf(-d2)))
-        theta = theta / 365
-        vega = S0 * norm.pdf(d1) * np.sqrt(T) / 100
-
-
-        return delta, gamma, theta, vega, rho
 
     greeks_df = []
 
@@ -158,16 +168,18 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
     df_interpolated = implied_volatility_df_indexed.unstack(0).interpolate(method='linear')
     greeks_interpolated = greeks_df_indexed.unstack(0).interpolate(method='linear')
 
+    greeks_interpolated = greeks_interpolated.fillna(0)
+    
     return df_interpolated, greeks_interpolated
 
 
 # Function to plot the implied volatility surface
 def plot_implied_volatility_surface(vol_surface, greek_surface, greek_parameter):
     custom_style = {
-        'axes.facecolor': '#000000',  # Background color of the plot
+        'axes.facecolor': '#0E1118',  # Background color of the plot
         'axes.edgecolor': '#FFFFFF',  # Edge color of the plot
         'axes.labelcolor': '#FFFFFF',  # Color of x, y, z axis labels
-        'figure.facecolor': '#000000',  # Background color of the figure
+        'figure.facecolor': '#0E1118',  # Background color of the figure
         'grid.color': '#555555',  # Color of grid lines, slightly brighter for better contrast
         'text.color': '#FFFFFF',  # Text color
         'axes.titleweight': 'bold',  # Title weight
@@ -259,7 +271,7 @@ def plot_implied_volatility_surface(vol_surface, greek_surface, greek_parameter)
 
 # Streamlit UI
 with st.sidebar:
-    st.title("Black Scholes Volatility Surface Generator")
+    st.title("Volatility Surface Generator")
     st.write("`Created by:`")
     linkedin_url = "https://www.linkedin.com/in/aidan-tabrizi/"
     st.markdown(f'<a href="{linkedin_url}" target="_blank" style="text-decoration: none; color: inherit;"><img src="https://cdn-icons-png.flaticon.com/512/174/174857.png" width="25" height="25" style="vertical-align: middle; margin-right: 10px;">`Aidan Tabrizi`</a>', unsafe_allow_html=True)
@@ -272,7 +284,7 @@ risk_free_rate = st.sidebar.number_input("Risk-Free Rate:", value=0.04)
 # Added input field for initial volatility guess
 sigma = st.sidebar.number_input("Initial Volatility Guess:", value=0.4, step=0.01)
 tolerance = 1e-9  # Tolerance for the solver
-st.sidebar.write("Visualize the volatility surface for a call or put option of any chosen security! Just enter the ticker symbol, select the option type, input the risk-free rate, and provide an initial guess for volatility. Using market option prices from Yahoo Finance, the implied volatility is calculated with the Black Scholes model and plotted via Matplotlib.")
+st.sidebar.write("Visualize the volatility surface and option Greeks (Delta, Gamma, Theta, Vega, Rho) for a call or put option of any chosen security! Just enter the ticker symbol, select the option type, input the risk-free rate, provide an initial guess for volatility, and choose a Greek parameter to overlay on the surface. Using market option prices from Yahoo Finance, the implied volatility is calculated with the Black-Scholes model, and the results are plotted via Matplotlib with interactive heatmaps to enhance analysis and understanding.")
 
 # Main Content
 
@@ -285,6 +297,7 @@ if ticker and option_type:
             if implied_vol_surface is not None and not implied_vol_surface.empty:
                 st.success('Calculation complete!')
                 plot_implied_volatility_surface(implied_vol_surface, greeks_surface, greek_parameter)
+
             else:
                 st.error("Failed to calculate implied volatility surface.")
         except Exception as e:

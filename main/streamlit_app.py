@@ -87,19 +87,43 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
 
     # --- After collecting all option data ---
     # After pivoting the DataFrame
-    df_option_data = df_option_data.pivot_table(index=['expiration_date', 'strike'], columns='type', values='midprice')
+    # -----------------------------------------
+    # ✅ 1. Convert raw list to DataFrame
+    df_option_data = pd.DataFrame(df_option_data, columns=['expiration_date', 'strike', 'midprice', 'type'])
     
-    # Reset the index to turn MultiIndex into columns
-    df_option_data = df_option_data.reset_index()
+    # ✅ 2. Drop rows with missing prices
+    df_option_data = df_option_data.dropna(subset=['midprice'])
     
-    # Now you can safely filter based on 'strike'
+    # ✅ 3. Filter by strike (before pivot)
     df_option_data = df_option_data[
-        (df_option_data['strike'] > S0 * 0.8) & 
+        (df_option_data['strike'] > S0 * 0.8) &
         (df_option_data['strike'] < S0 * 1.2)
     ]
     
-    # If needed, set the index back
-    df_option_data = df_option_data.set_index(['expiration_date', 'strike'])
+    # ✅ 4. Calculate days to expiry
+    df_option_data['days_to_expiry'] = pd.to_datetime(df_option_data['expiration_date'])
+    df_option_data['expiration_date'] = (df_option_data['days_to_expiry'] - today).dt.days
+    
+    # ✅ 5. Filter expiry range (before pivot)
+    df_option_data = df_option_data[
+        (df_option_data['expiration_date'] > 0) &
+        (df_option_data['expiration_date'] < 100)
+    ]
+    
+    # ✅ 6. Pivot safely
+    df_option_data = df_option_data.pivot_table(
+        index=['expiration_date', 'strike'],
+        columns='type',
+        values='midprice'
+    )
+    
+    # ✅ 7. Drop rows where desired option type (CALL/PUT) is missing
+    if option_type not in df_option_data.columns:
+        st.error(f"No {option_type} option data found.")
+        return None
+    
+    df_option_data = df_option_data.dropna(subset=[option_type])
+
 
 
     # Black-Scholes model function for implied volatility calculation

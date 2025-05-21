@@ -85,21 +85,26 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
             midprice = (option['bid'] + option['ask']) / 2
             df_option_data.append([expiration_date, strike, midprice, 'PUT'])
 
-    # Convert the list to a DataFrame
+    # --- After collecting all option data ---
     df_option_data = pd.DataFrame(df_option_data, columns=['expiration_date', 'strike', 'midprice', 'type'])
-
-    # Filter the data to strikes within 20% of the current stock price
-    df_option_data = df_option_data[(S0 * 0.8 < df_option_data['strike']) & (df_option_data['strike'] < S0 * 1.2)]
-
-    # Calculate days to expiry using 'today' as the most recent market day
+    
+    # ✅ Filter by strike before pivot (while strike is still a column)
+    df_option_data = df_option_data[
+        (df_option_data['strike'] > S0 * 0.8) &
+        (df_option_data['strike'] < S0 * 1.2)
+    ]
+    
+    # Calculate days to expiry using the actual 'today' timestamp from fetched stock data
     df_option_data['days_to_expiry'] = pd.to_datetime(df_option_data['expiration_date'])
     df_option_data['expiration_date'] = (df_option_data['days_to_expiry'] - today).dt.days
-
-    # Filter by expiry dates within 100 days
-    df_option_data = df_option_data[df_option_data['expiration_date'] > 0]
-    df_option_data = df_option_data[df_option_data['expiration_date'] < 100]
-
-    # Set index and pivot the table for easier access
+    
+    # ✅ Filter by expiry dates before pivot
+    df_option_data = df_option_data[
+        (df_option_data['expiration_date'] > 0) &
+        (df_option_data['expiration_date'] < 100)
+    ]
+    
+    # ✅ Now it's safe to pivot
     df_option_data = df_option_data.set_index(['expiration_date', 'strike', 'type']).sort_index()
     df_option_data = df_option_data.pivot_table(index=['expiration_date', 'strike'], columns='type', values='midprice')
 

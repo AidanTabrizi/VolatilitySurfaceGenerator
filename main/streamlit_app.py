@@ -1,4 +1,3 @@
-# ────────────────────────────  Imports  ────────────────────────────
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -7,236 +6,310 @@ from datetime import datetime, timedelta
 from scipy.optimize import fsolve
 from scipy.stats import norm
 import matplotlib.pyplot as plt
-from matplotlib.colors import Normalize
+from matplotlib.colors import Normalize, TwoSlopeNorm
 
-# ─────────────────────────  Streamlit Tweaks  ──────────────────────
 st.markdown(
     """
     <style>
-        header, footer, .css-1y4p8pa {visibility: hidden;}
+    /* Hide the Streamlit header */
+    header {visibility: hidden;}
+
+    /* Hide the Streamlit footer */
+    footer {visibility: hidden;}
+
+    /* Hide the hamburger menu */
+    .css-1y4p8pa {visibility: hidden;}
     </style>
     """,
-    unsafe_allow_html=True,
+    unsafe_allow_html=True
 )
 
-# ────────────────────  Utility: most-recent market day  ────────────
-def most_recent_mkt_day() -> datetime.date:
+def fetch_stock_data(ticker, start_date, max_attempts=5):
+    attempt = 0
+    while attempt < max_attempts:
+        stock_data = yf.download(ticker, start=start_date)
+        if not stock_data.empty:
+            return stock_data
+        else:
+            start_date -= timedelta(days=1)  # Go back one day if no data is found
+            attempt += 1
+    return None  # Return None if all attempts fail
+# Function to find the most recent market day if today is a weekend
+def get_recent_market_day():
+    # Use the current date in US Eastern Time
+
     today = datetime.today().date()
-    if today.weekday() == 5:     # Sat
+    # If today is Saturday, go back to Friday
+    if today.weekday() == 5:  # Saturday
         return today - timedelta(days=1)
-    if today.weekday() == 6:     # Sun
+    # If today is Sunday, go back to Friday
+    elif today.weekday() == 6:  # Sunday
         return today - timedelta(days=2)
-    return today                 # Mon-Fri
+    else:
+        return today
 
-# ────────────────────  Utility: fetch equity prices  ───────────────
-def fetch_stock_data(tkr: str, start_day: datetime.date, max_tries: int = 5):
-    for _ in range(max_tries):
-        df = yf.download(tkr, start=start_day)
-        if not df.empty:
-            return df
-        start_day -= timedelta(days=1)
-    return None
+# Function to calculate the implied volatility surface
+def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
+    # Get the current date and find the most recent market day
+    recent_market_day = get_recent_market_day()
+    start_date = recent_market_day.strftime('%Y-%m-%d')
 
-# ───────────────────────  Volatility Solver  ───────────────────────
-def volatility_solver(ticker, rfr, side, sigma_guess, tol):
-    """Return (vol_surface, greeks_surface)  – both DataFrames"""
-    # ----- underlying -----
-    recent_day  = most_recent_mkt_day()
-    stock_df    = fetch_stock_data(ticker, recent_day)
-    if stock_df is None or stock_df.empty:
-        st.error(f"No price data for {ticker}.")
-        return None, None
+    # Fetch stock data
+    stock_data = fetch_stock_data(ticker, recent_market_day)
+    if stock_data.empty:
+        st.error(f"No stock data available for {ticker} on {start_date}.")
+        return None
+    S0 = stock_data['Close'].iloc[-1]
+    today = stock_data.index[-1]  # Update 'today' to be the last date in stock_data
 
-    S0          = stock_df["Close"].iloc[-1]
-    today       = stock_df.index[-1]
+    # Fetch option data
+    ticker_info = yf.Ticker(ticker)
+    option_data = ticker_info.options
+    df_option_data = []
 
-    # ----- option chain -----
-    yftkr       = yf.Ticker(ticker)
-    maturities  = yftkr.options
-    rows        = []                                           # build list → DataFrame
+    # Collect options data for each expiration date
+    for expiration_date in option_data:
+        option_chain = ticker_info.option_chain(expiration_date)
+        calls = option_chain.calls
+        puts = option_chain.puts
 
-    for exp in maturities:
-        chain = yftkr.option_chain(exp)
-        def mid(row): return (row["bid"] + row["ask"]) / 2
+        # Add call option data
+        for _, option in calls.iterrows():
+            strike = option['strike']
+            midprice = (option['bid'] + option['ask']) / 2
+            df_option_data.append([expiration_date, strike, midprice, 'CALL'])
 
-        for _, row in chain.calls.iterrows():
-            rows.append([exp, row["strike"], mid(row), "CALL"])
-        for _, row in chain.puts.iterrows():
-            rows.append([exp, row["strike"], mid(row), "PUT"])
+        # Add put option data
+        for _, option in puts.iterrows():
+            strike = option['strike']
+            midprice = (option['bid'] + option['ask']) / 2
+            df_option_data.append([expiration_date, strike, midprice, 'PUT'])
 
-    df = (
-        pd.DataFrame(
-            rows, columns=["expiration", "strike", "midprice", "type"]
-        )
-        .dropna(subset=["midprice"])                                     # remove missing quotes
-    )
+    # Convert the list to a DataFrame
+    df_option_data = pd.DataFrame(df_option_data, columns=['expiration_date', 'strike', 'midprice', 'type'])
 
-    # ----- strike filter BEFORE pivot -----
-    df = df[(df["strike"] > 0.8*S0) & (df["strike"] < 1.2*S0)]
+    # Filter the data to strikes within 20% of the current stock price
+    df_option_data = df_option_data[(S0 * 0.8 < df_option_data['strike']) & (df_option_data['strike'] < S0 * 1.2)]
 
-    # ----- days to expiry & expiry filter BEFORE pivot -----
-    df["days"] = pd.to_datetime(df["expiration"])
-    df["days"] = (df["days"] - today).dt.days
-    df = df[(df["days"] > 0) & (df["days"] < 100)]
+    # Calculate days to expiry using 'today' as the most recent market day
+    df_option_data['days_to_expiry'] = pd.to_datetime(df_option_data['expiration_date'])
+    df_option_data['expiration_date'] = (df_option_data['days_to_expiry'] - today).dt.days
 
-    if df.empty:
-        st.error("No options left after filtering.")
-        return None, None
+    # Filter by expiry dates within 100 days
+    df_option_data = df_option_data[df_option_data['expiration_date'] > 0]
+    df_option_data = df_option_data[df_option_data['expiration_date'] < 100]
 
-    # ----- pivot (index: days,strike | columns: CALL/PUT) -----
-    df = (
-        df.set_index(["days", "strike", "type"])
-          .sort_index()
-          .pivot_table(index=["days", "strike"], columns="type", values="midprice")
-    )
+    # Set index and pivot the table for easier access
+    df_option_data = df_option_data.set_index(['expiration_date', 'strike', 'type']).sort_index()
+    df_option_data = df_option_data.pivot_table(index=['expiration_date', 'strike'], columns='type', values='midprice')
 
-    if side not in df.columns:
-        st.error(f"No {side} data inside ±20 % strike window.")
-        return None, None
+    # Black-Scholes model function for implied volatility calculation
+    def BlackScholesModel(sigma, S0, K, P, T, r, option_type):
+        d1 = (np.log(S0 / K) + (r + sigma ** 2 / 2) * T) / (sigma * np.sqrt(T))
+        d2 = d1 - sigma * np.sqrt(T)
+        if option_type == 'CALL':
+            return S0 * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2) - P
+        elif option_type == 'PUT':
+            return K * np.exp(-r * T) * norm.cdf(-d2) - P - S0 * norm.cdf(-d1)
 
-    # ───────────  Black-Scholes helpers  ───────────
-    def bs_resid(sigma, s0, k, p, t, r, _side):
-        d1 = (np.log(s0/k) + (r + 0.5*sigma**2)*t) / (sigma*np.sqrt(t))
-        d2 = d1 - sigma*np.sqrt(t)
-        if _side == "CALL":
-            model = s0*norm.cdf(d1) - k*np.exp(-r*t)*norm.cdf(d2)
-        else:
-            model = k*np.exp(-r*t)*norm.cdf(-d2) - s0*norm.cdf(-d1)
-        return model - p
-
-    def greeks(s0, k, t, r, sig, _side):
-        d1 = (np.log(s0/k) + (r + 0.5*sig**2)*t) / (sig*np.sqrt(t))
-        d2 = d1 - sig*np.sqrt(t)
-        pdf = norm.pdf(d1)
-        if _side == "CALL":
-            delta = norm.cdf(d1)
-            rho   =  k*t*np.exp(-r*t)*norm.cdf(d2)/100
-        else:
-            delta = norm.cdf(d1) - 1
-            rho   = -k*t*np.exp(-r*t)*norm.cdf(-d2)/100
-        gamma = pdf / (s0*sig*np.sqrt(t))
-        vega  = s0*pdf*np.sqrt(t)/100
-        theta = -(s0*pdf*sig)/(2*np.sqrt(t)) - r*k*np.exp(-r*t)*(
-                 norm.cdf(d2) if _side=="CALL" else norm.cdf(-d2))
-        theta /= 365
-        return delta, gamma, theta, vega, rho
-
-    # ───────────  solve vols + greeks  ───────────
-    vols, g_rows = [], []
-    for (t_days, k), price in df[side].items():
-        T = t_days / 365
+    # List to hold implied volatilities
+    implied_volatility_df = []
+    def calculate_greeks(S0, K, T, r, sigma, option_type):
         try:
-            vol = float(
-                fsolve(bs_resid, sigma_guess,
-                       args=(S0, k, price, T, rfr, side),
-                       xtol=tol)[0]
+            d1 = (np.log(S0 / K) + (r + sigma ** 2 / 2) * T) / (sigma * np.sqrt(T))
+            d2 = d1 - sigma * np.sqrt(T)
+    
+            if option_type == 'CALL':
+                delta = norm.cdf(d1)
+                rho = K * T * np.exp(-r * T) * norm.cdf(d2) / 100
+            elif option_type == 'PUT':
+                delta = norm.cdf(d1) - 1
+                rho = -K * T * np.exp(-r * T) * norm.cdf(-d2) / 100
+    
+            # Calculate Gamma safely, avoiding division by zero or extreme values
+            if sigma > 0 and T > 0:
+                gamma = norm.pdf(d1) / (S0 * sigma * np.sqrt(T))
+            else:
+                gamma = np.nan  # Assign NaN if sigma or T are not suitable
+    
+            theta = - (S0 * norm.pdf(d1) * sigma / (2 * np.sqrt(T)) - r * K * np.exp(-r * T) * (norm.cdf(d2) if option_type == 'CALL' else norm.cdf(-d2)))
+            theta = theta / 365
+            vega = S0 * norm.pdf(d1) * np.sqrt(T) / 100
+    
+            return delta, gamma, theta, vega, rho
+        except Exception as e:
+            # Handle exceptions and return NaN for the Greeks if computation fails
+            st.error(f"Error calculating Greeks: {e}")
+            return np.nan, np.nan, np.nan, np.nan, np.nan
+
+
+    greeks_df = []
+
+    # Calculate implied volatility for each option
+    for index, value in df_option_data[option_type].items():
+        T = index[0] / 365
+        K = index[1]
+        sigma0 = sigma
+        try:
+            implied_volatility = fsolve(
+                BlackScholesModel, sigma0,
+                args=(S0, K, value, T, rfr, option_type),
+                xtol=tolerance
             )
-            vol = np.nan if not (0 < vol < 5) else vol
-        except Exception:
-            vol = np.nan
-        vols.append(vol)
-        g_rows.append(
-            greeks(S0, k, T, rfr, vol, side) if not np.isnan(vol)
-            else (np.nan,)*5
-        )
+            implied_volatility_scalar = float(implied_volatility[0])
+            delta, gamma, theta, vega, rho = calculate_greeks(S0, K, T, rfr, implied_volatility_scalar, option_type)
+            if 0 < implied_volatility_scalar < 5:
+                implied_volatility_df.append(implied_volatility_scalar)
+                greeks_df.append([delta, gamma, theta, vega, rho])
+            else:
+                implied_volatility_df.append(np.nan)
+                greeks_df.append([np.nan, np.nan, np.nan, np.nan, np.nan])
+        except Exception as e:
+            st.error(f"Error calculating implied volatility for strike {K} and expiry {index[0]}: {e}")
+            implied_volatility_df.append(np.nan)
+            greeks_df.append([np.nan, np.nan, np.nan, np.nan, np.nan])
 
-    vol_ser  = pd.Series(vols, index=df[side].index)
-    greeks_df= pd.DataFrame(
-        g_rows, index=df[side].index,
-        columns=["DELTA","GAMMA","THETA","VEGA","RHO"],
-    )
+    # Convert implied volatility list to a DataFrame with the original index
+    implied_volatility_df_indexed = pd.Series(implied_volatility_df, index=df_option_data[option_type].index)
+    greeks_df_indexed = pd.DataFrame(greeks_df, index=df_option_data[option_type].index, columns=['DELTA', 'GAMMA', 'THETA', 'VEGA', 'RHO'])
 
-    vol_surf   = vol_ser.unstack(0).interpolate("linear")
-    greeks_surf= greeks_df.unstack(0).interpolate("linear").fillna(0)
-    return vol_surf, greeks_surf
+    # Interpolate missing values
+    df_interpolated = implied_volatility_df_indexed.unstack(0).interpolate(method='linear')
+    greeks_interpolated = greeks_df_indexed.unstack(0).interpolate(method='linear')
 
-# ────────────────────  3-D Surface Plotter  ────────────────────────
-def plot_surface(vol, greeks, greek, side, ticker):
-    plt.rcParams.update({
-        "axes.facecolor":   "#0E1118",
-        "figure.facecolor": "#0E1118",
-        "text.color":       "#FFFFFF",
-        "axes.labelcolor":  "#FFFFFF",
-        "axes.edgecolor":   "#FFFFFF",
-        "grid.color":       "#555555",
-        "axes.titleweight": "bold",
-        "axes.labelweight": "bold",
-        "axes.titlesize":   20,
-        "font.size":        11,
-        "legend.fontsize":  11,
-    })
+    greeks_interpolated = greeks_interpolated.fillna(0)
+    
+    return df_interpolated, greeks_interpolated
 
-    X = vol.columns.values            # expiry (days)
-    Y = vol.index.values              # strike
+
+# Function to plot the implied volatility surface
+def plot_implied_volatility_surface(vol_surface, greek_surface, greek_parameter):
+    custom_style = {
+        'axes.facecolor': '#0E1118',  # Background color of the plot
+        'axes.edgecolor': '#FFFFFF',  # Edge color of the plot
+        'axes.labelcolor': '#FFFFFF',  # Color of x, y, z axis labels
+        'figure.facecolor': '#0E1118',  # Background color of the figure
+        'grid.color': '#555555',  # Color of grid lines, slightly brighter for better contrast
+        'text.color': '#FFFFFF',  # Text color
+        'axes.titleweight': 'bold',  # Title weight
+        'axes.labelweight': 'bold',  # Label weight
+        'axes.titlesize': 20,  # Title size
+        'axes.labelsize': 12,  # Label size
+        'font.family': 'sans-serif',  # Font family
+        'font.size': 11,  # Font size
+        'legend.fontsize': 11,  # Legend font size
+        'figure.autolayout': True,  # Automatically adjust the layout
+    }
+    plt.rcParams.update(custom_style)
+
+    # Prepare data for plotting
+    X = vol_surface.columns.values  # Expiry times
+    Y = vol_surface.index.values    # Strike prices
     X, Y = np.meshgrid(X, Y)
-    Z = vol.values
-    C = greeks[greek].values
+    Z = vol_surface.values
+    C = greek_surface[greek_parameter].values
 
-    # colour-map normalisation
-    if greek == "DELTA":
-        vmin, vmax = (-1, 0) if side == "PUT" else (0, 1)
-    elif greek == "GAMMA":
-        vmin, vmax = C.min(), max(C.max(), 0.2)
-    elif greek == "THETA":
-        vmin, vmax = C.min(), 0
-    elif greek == "VEGA":
-        vmin, vmax = 0, max(C.max(), 0.5)
-    else:  # RHO
-        vmin, vmax = (-0.5, 0) if side == "PUT" else (0, 0.5)
-
-    norm = Normalize(vmin=vmin, vmax=vmax)
-    cmap = "plasma_r" if (greek in {"DELTA","THETA","RHO"} and side=="PUT") else "plasma"
-
+    # Set appropriate normalization based on the Greek parameter
+    if greek_parameter == 'DELTA':
+        if option_type == 'PUT':
+            norm = Normalize(vmin=-1, vmax=0)
+            cmap = 'plasma_r'
+        else:
+            norm = Normalize(vmin=0, vmax=1)
+            cmap = 'plasma'
+    elif greek_parameter == 'GAMMA':
+        norm = Normalize(vmin=min(C.min(), 0), vmax=max(C.max(), 0.2))
+        cmap = 'plasma'
+    elif greek_parameter == 'THETA':
+        norm = Normalize(vmin=min(C.min(), -0.5), vmax=max(C.max(), 0))
+        cmap = 'plasma_r'
+    elif greek_parameter == 'VEGA':
+        norm = Normalize(vmin=min(C.min(), 0), vmax=max(C.max(), 0.5))
+        cmap = 'plasma'
+    elif greek_parameter == 'RHO':
+        if option_type == 'PUT':
+            norm = Normalize(vmin=-0.5, vmax=0)
+            cmap = 'plasma_r'
+        else:
+            norm = Normalize(vmin=0, vmax=0.5)
+            cmap = 'plasma'
+    # Create the figure and axes
     fig = plt.figure(figsize=(16, 8))
-    ax  = fig.add_subplot(111, projection="3d")
+    ax = fig.add_subplot(111, projection='3d')
+    ax.xaxis.pane.fill = False
+    ax.yaxis.pane.fill = False
+    ax.zaxis.pane.fill = False
+    ax.xaxis.pane.set_edgecolor('#555555')
+    ax.yaxis.pane.set_edgecolor('#555555')
+    ax.zaxis.pane.set_edgecolor('#555555')
+    ax.tick_params(axis='x', colors='#FFFFFF')
+    ax.tick_params(axis='y', colors='#FFFFFF')
+    ax.tick_params(axis='z', colors='#FFFFFF')
+    ax.xaxis.set_tick_params(labelcolor='#FFFFFF')
+    ax.yaxis.set_tick_params(labelcolor='#FFFFFF')
+    ax.zaxis.set_tick_params(labelcolor='#FFFFFF')
 
-    surf = ax.plot_surface(
-        X, Y, Z, facecolors=plt.cm.get_cmap(cmap)(norm(C)),
-        rstride=1, cstride=1, edgecolor="#657383", linewidth=0.05, antialiased=False
-    )
 
-    ax.set_xlabel("Time to Expiry (Days)", weight="bold")
-    ax.set_ylabel("Strike Price",         weight="bold")
-    ax.set_zlabel("Implied Volatility",   weight="bold")
-    ax.set_title(f"{ticker.upper()} {side} – IV Surface coloured by {greek}", weight="bold")
+    colormap = plt.colormaps.get_cmap(cmap)
 
-    m = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
-    m.set_array(C)
-    cbar = fig.colorbar(m, ax=ax, shrink=0.5, aspect=5)
-    cbar.set_label(greek, color="#FFFFFF", weight="bold")
+    # Plot the surface
+    surf = ax.plot_surface(X, Y, Z, facecolors=colormap(norm(C)), rstride=1,cstride=1, edgecolor='#657383', linewidth=0.02, antialiased=False)
 
+
+    # Add labels and title
+    ax.set_xlabel('Time to Expiry (Days)', weight = 'bold')
+    ax.set_ylabel('Strike Price (USD)', weight = 'bold')
+    ax.set_zlabel('Implied Volatility', weight = 'bold')
+    ax.set_title(f'Volatility Surface with {greek_parameter.capitalize()} for {ticker.upper()} {option_type.capitalize()} Options', weight='bold', size ='20')
+
+    # Add a color bar
+    mappable = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    mappable.set_array(C)
+    color_bar = fig.colorbar(mappable, ax=ax, shrink=0.5, aspect=5)  # Adjust 'shrink' and 'aspect' to fit your layout
+
+    # Add a label to the color bar
+    color_bar.set_label(f'{greek_parameter.capitalize()}', color='#FFFFFF', fontsize=12, labelpad=15, weight='bold')
+
+    # Set the tick parameters (optional customization)
+    color_bar.ax.tick_params(labelsize=10, labelcolor='#FFFFFF')
+
+
+
+    # Display the plot in Streamlit
     st.pyplot(fig)
 
-# ─────────────────────────  Sidebar (UI)  ──────────────────────────
+# Streamlit UI
 with st.sidebar:
     st.title("Volatility Surface Generator")
-    st.write("Created by:")
-    st.markdown(
-        '<a href="https://www.linkedin.com/in/aidan-tabrizi/" target="_blank">'
-        '<img src="https://cdn-icons-png.flaticon.com/512/174/174857.png" '
-        'width="25" height="25" style="vertical-align: middle;"> Aidan&nbsp;Tabrizi'
-        '</a>', unsafe_allow_html=True
-    )
-    ticker      = st.text_input("Ticker Symbol:", value="AAPL")
-    side        = st.selectbox("Option Type:", ["CALL", "PUT"])
-    greek       = st.selectbox("Heatmap Parameter:", ["DELTA","GAMMA","THETA","VEGA","RHO"])
-    rfr         = st.number_input("Risk-Free Rate:", value=0.04, step=0.001)
-    sigma_guess = st.number_input("Initial Vol Guess:", value=0.40, step=0.01)
-    tol         = 1e-9
+    st.write("`Created by:`")
+    linkedin_url = "https://www.linkedin.com/in/aidan-tabrizi/"
+    st.markdown(f'<a href="{linkedin_url}" target="_blank" style="text-decoration: none; color: inherit;"><img src="https://cdn-icons-png.flaticon.com/512/174/174857.png" width="25" height="25" style="vertical-align: middle; margin-right: 10px;">`Aidan Tabrizi`</a>', unsafe_allow_html=True)
 
-    st.write("""
-        Visualise the implied-volatility surface and overlay any Greek parameter.
-        Data are fetched live from Yahoo Finance and solved with Black–Scholes.
-    """)
+# Input fields in the sidebar
+ticker = st.sidebar.text_input('Ticker Symbol:', value='AAPL')
+option_type = st.sidebar.selectbox('Option Type:', ['CALL', 'PUT'])
+greek_parameter = st.sidebar.selectbox('Heatmap Parameter:', ['DELTA','GAMMA','THETA','VEGA','RHO'])
+risk_free_rate = st.sidebar.number_input("Risk-Free Rate:", value=0.04)
+# Added input field for initial volatility guess
+sigma = st.sidebar.number_input("Initial Volatility Guess:", value=0.4, step=0.01)
+tolerance = 1e-9  # Tolerance for the solver
+st.sidebar.write("Visualize the volatility surface and option Greeks (Delta, Gamma, Theta, Vega, Rho) for a call or put option of any chosen security! Just enter the ticker symbol, select the option type, input the risk-free rate, provide an initial guess for volatility, and choose a Greek parameter to overlay on the surface. Using market option prices from Yahoo Finance, the implied volatility is calculated with the Black-Scholes model, and the results are plotted via Matplotlib with interactive heatmaps to enhance analysis and understanding.")
 
-# ───────────────────────────  Main Logic  ─────────────────────────
-if ticker:
-    with st.spinner("Crunching option chain …"):
-        vol_s, gk_s = volatility_solver(ticker, rfr, side, sigma_guess, tol)
-        if vol_s is not None and not vol_s.empty:
-            st.success("Done!")
-            plot_surface(vol_s, gk_s, greek, side, ticker)
-        else:
-            st.error("Failed to build surface.")
+# Main Content
+
+
+# Generate and plot the implied volatility surface if inputs are valid
+if ticker and option_type:
+    with st.spinner('Calculating implied volatility surface...'):
+        try:
+            implied_vol_surface, greeks_surface = volatility_solver(ticker, risk_free_rate, option_type, sigma, tolerance)
+            if implied_vol_surface is not None and not implied_vol_surface.empty:
+                st.success('Calculation complete!')
+                plot_implied_volatility_surface(implied_vol_surface, greeks_surface, greek_parameter)
+
+            else:
+                st.error("Failed to calculate implied volatility surface.")
+        except Exception as e:
+            st.error(f"An error occurred: {e}")
 else:
-    st.warning("Enter a ticker to begin.")
+    st.warning("Please provide a valid ticker symbol and option type.")

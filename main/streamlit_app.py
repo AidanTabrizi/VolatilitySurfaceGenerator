@@ -86,27 +86,21 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
             df_option_data.append([expiration_date, strike, midprice, 'PUT'])
 
     # --- After collecting all option data ---
-    df_option_data = pd.DataFrame(df_option_data, columns=['expiration_date', 'strike', 'midprice', 'type'])
+    # After pivoting the DataFrame
+    df_option_data = df_option_data.pivot_table(index=['expiration_date', 'strike'], columns='type', values='midprice')
     
-    # ✅ Filter by strike before pivot (while strike is still a column)
+    # Reset the index to turn MultiIndex into columns
+    df_option_data = df_option_data.reset_index()
+    
+    # Now you can safely filter based on 'strike'
     df_option_data = df_option_data[
-        (df_option_data['strike'] > S0 * 0.8) &
+        (df_option_data['strike'] > S0 * 0.8) & 
         (df_option_data['strike'] < S0 * 1.2)
     ]
     
-    # Calculate days to expiry using the actual 'today' timestamp from fetched stock data
-    df_option_data['days_to_expiry'] = pd.to_datetime(df_option_data['expiration_date'])
-    df_option_data['expiration_date'] = (df_option_data['days_to_expiry'] - today).dt.days
-    
-    # ✅ Filter by expiry dates before pivot
-    df_option_data = df_option_data[
-        (df_option_data['expiration_date'] > 0) &
-        (df_option_data['expiration_date'] < 100)
-    ]
-    
-    # ✅ Now it's safe to pivot
-    df_option_data = df_option_data.set_index(['expiration_date', 'strike', 'type']).sort_index()
-    df_option_data = df_option_data.pivot_table(index=['expiration_date', 'strike'], columns='type', values='midprice')
+    # If needed, set the index back
+    df_option_data = df_option_data.set_index(['expiration_date', 'strike'])
+
 
     # Black-Scholes model function for implied volatility calculation
     def BlackScholesModel(sigma, S0, K, P, T, r, option_type):

@@ -107,8 +107,8 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
         # 3) Reset to a simple RangeIndex so masks NEVER mis-align
         df_option_data.reset_index(drop=True, inplace=True)
         
-        mask = (df_option_data['strike'].to_numpy() > S0 * 0.8)
-        & (df_option_data['strike'].to_numpy() < S0 * 1.2)
+        mask = (df_option_data['strike'].to_numpy() > S0 * 0.8) & 
+        (df_option_data['strike'].to_numpy() < S0 * 1.2)
         df_option_data = df_option_data.iloc[mask] 
             
         # 5) Compute days-to-expiry
@@ -118,8 +118,8 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
         ).dt.days
         
         # 6) Keep options expiring in the next 0–100 days
-        ask_exp = (df_option_data['expiration_date'].to_numpy() > 0)
-        & (df_option_data['expiration_date'].to_numpy() < 100)
+        ask_exp = (df_option_data['expiration_date'].to_numpy() > 0) & 
+        (df_option_data['expiration_date'].to_numpy() < 100)
         df_option_data = df_option_data.iloc[mask_exp]
         
         # 7) Pivot so each row = (expiry, strike) and columns = CALL / PUT

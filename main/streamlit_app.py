@@ -92,7 +92,7 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
     df_option_data = df_option_data.drop_duplicates(subset=['expiration_date', 'strike', 'type']
 
     # Filter the data to strikes within 20% of the current stock price
-    strikes = df_option_data['strike'].to_numpy(float)
+    strikes = df_option_data['strike'].to_numpy(dtype=float)
     strike_mask = (strikes > S0 * 0.8) & (strikes < S0 * 1.2)
     df_option_data = df_option_data.iloc[strike_mask]
 

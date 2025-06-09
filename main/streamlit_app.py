@@ -10,21 +10,50 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
 
 # ───────────────────────────  Streamlit chrome  ────────────────────────
+# ───────────────────────────  Streamlit chrome  ────────────────────────
 st.markdown(
     """
     <style>
-    /* Hide the Streamlit header */
-    header {visibility: hidden;}
+    /* Hide the Streamlit header, footer, and hamburger menu */
+    header, footer, .css-1y4p8pa {
+        visibility: hidden;
+    }
 
-    /* Hide the Streamlit footer */
-    footer {visibility: hidden;}
+    /* ------------------- WIDGET HOVER STYLES ------------------- */
+    
+    /* Change border color of text and number inputs on hover */
+    .stTextInput input:hover,
+    .stNumberInput input:hover {
+        border-color: #4F8BF9 !important; /* A nice blue */
+        box-shadow: 0 0 0 1px #4F8BF9;   /* Optional: adds a subtle glow */
+    }
 
-    /* Hide the hamburger menu */
-    .css-1y4p8pa {visibility: hidden;}
+    /* Change border color of selectbox on hover */
+    .stSelectbox > div:hover {
+        border-color: #4F8BF9 !important; /* A nice blue */
+        box-shadow: 0 0 0 1px #4F8BF9;   /* Optional: adds a subtle glow */
+    }
+
+    /* Style for buttons on hover */
+    .stButton > button:hover {
+        border: 1px solid #4A5568;      /* A muted gray-blue */
+        background-color: #2a313e;    /* A slightly lighter background on hover */
+        color: #FAFAFA !important;      /* Ensure text color stays light */
+    }
+
+    /* Optional: Style for when a widget is actively in use (focused) */
+    .stTextInput input:focus,
+    .stNumberInput input:focus,
+    .stSelectbox > div[data-baseweb="select"]:focus-within {
+        border-color: #4F8BF9 !important;
+        box-shadow: 0 0 0 2px #4F8BF9;
+    }
+    
     </style>
     """,
     unsafe_allow_html=True
 )
+
 
 # ───────────────────────────  Helper functions  ────────────────────────
 def fetch_stock_data(ticker: str, ref_date: datetime.date, max_tries=5):

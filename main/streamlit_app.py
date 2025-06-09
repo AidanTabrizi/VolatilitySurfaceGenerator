@@ -89,6 +89,7 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
     df_option_data = pd.DataFrame(df_option_data, columns=['expiration_date', 'strike', 'midprice', 'type'])
     df_option_data['strike'] = pd.to_numeric(df_option_data['strike'], errors='coerce')
     df_option_data.dropna(subset=['strike', 'midprice'], inplace=True)
+    df_option_data = df_option_data.drop_duplicates(subset=['expiration_date', 'strike', 'type']
 
     # Filter the data to strikes within 20% of the current stock price
     strikes = df_option_data['strike'].to_numpy(float)
@@ -104,9 +105,8 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
     expiry_mask = (exp_days > 0) & (exp_days < 100)
     df_option_data = df_option_data.iloc[expiry_mask]
 
-    # Set index and pivot the table for easier access
-    df_option_data = df_option_data.set_index(['expiration_date', 'strike', 'type']).sort_index()
-    df_option_data = df_option_data.pivot_table(index=['expiration_date', 'strike'], columns='type', values='midprice')
+    # Set pivot the table for easier access
+    df_option_data = df_option_data.pivot_table(index=['expiration_date', 'strike'], columns='type', values='midprice').sort_index()
 
     # Black-Scholes model function for implied volatility calculation
     def BlackScholesModel(sigma, S0, K, P, T, r, option_type):

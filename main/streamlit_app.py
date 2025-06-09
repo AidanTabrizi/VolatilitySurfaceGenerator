@@ -202,8 +202,8 @@ def plot_surface(vol_surf: pd.DataFrame, greek_surf: pd.DataFrame,
     ax.yaxis.set_tick_params(labelcolor='#FFFFFF')
     ax.zaxis.set_tick_params(labelcolor='#FFFFFF')
                      
-    ax  = fig.add_subplot(111, projection="3d")
-    surf = ax.plot_surface(X, Y, Z, facecolors=colormap(norm(C)), rstride=1,cstride=1, edgecolor='#657383', linewidth=0.02, antialiased=False)
+
+    surf = ax.plot_surface(X, Y, Z, facecolors=plt.cm.get_cmap(cmap)(norm(C)), rstride=1,cstride=1, edgecolor='#657383', linewidth=0.02, antialiased=False)
     ax.set_xlabel("Days to Expiry")
     ax.set_ylabel("Strike")
     ax.set_zlabel("Implied Volatility")

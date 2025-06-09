@@ -1,3 +1,4 @@
+# ──────────────────────────────  Imports  ──────────────────────────────
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -8,7 +9,7 @@ from scipy.stats import norm
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
 
-# ──────────────────────────────────  STREAMLIT CHROME  ─────────────────────────
+# ───────────────────────────  Streamlit chrome  ────────────────────────
 st.markdown(
     """
     <style>
@@ -18,168 +19,176 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ─────────────────────────────────  HELPERS  ───────────────────────────────────
-def fetch_stock_data(ticker, start_date, max_attempts=5):
-    """Download most-recent market data, stepping back a day if holiday."""
-    for _ in range(max_attempts):
-        data = yf.download(ticker, start=start_date)
-        if not data.empty:
-            return data
-        start_date -= timedelta(days=1)
+# ───────────────────────────  Helper functions  ────────────────────────
+def fetch_stock_data(ticker: str, ref_date: datetime.date, max_tries=5):
+    """Download most-recent price data, stepping back if holiday."""
+    for _ in range(max_tries):
+        df = yf.download(ticker, start=ref_date)
+        if not df.empty:
+            return df
+        ref_date -= timedelta(days=1)
     return None
 
-def get_recent_market_day() -> datetime.date:
+def recent_market_day() -> datetime.date:
     today = datetime.today().date()
-    if today.weekday() == 5:        # Saturday
+    if today.weekday() == 5:  # Saturday
         return today - timedelta(days=1)
-    if today.weekday() == 6:        # Sunday
+    if today.weekday() == 6:  # Sunday
         return today - timedelta(days=2)
     return today
 
-# ───────────────────────────────  CORE SOLVER  ────────────────────────────────
-def volatility_solver(ticker, rfr, option_type, sigma0, tol):
+# ─────────────────────────  Core IV-surface solver  ────────────────────
+def volatility_solver(ticker: str, rfr: float, opt_type: str,
+                      sigma0: float, tol: float):
     # 1) Spot price
-    trade_date = get_recent_market_day()
+    trade_date = recent_market_day()
     spot_df    = fetch_stock_data(ticker, trade_date)
     if spot_df is None or spot_df.empty:
-        st.error("No recent price data found.")
+        st.error("Couldn’t fetch recent price data.")
         return None, None
-    S0   = spot_df["Close"].iloc[-1]
+    S0   = float(spot_df["Close"].iloc[-1])
     today = spot_df.index[-1]
 
-    # 2) Pull option chains for every expiry
+    # 2) Option chain
+    tkr = yf.Ticker(ticker)
     rows = []
-    tk   = yf.Ticker(ticker)
-    for expiry in tk.options:
-        oc = tk.option_chain(expiry)
-        for _, opt in oc.calls.iterrows():
-            rows.append([expiry, opt["strike"], (opt["bid"] + opt["ask"]) / 2, "CALL"])
-        for _, opt in oc.puts.iterrows():
-            rows.append([expiry, opt["strike"], (opt["bid"] + opt["ask"]) / 2, "PUT"])
+    for exp in tkr.options:
+        chain = tkr.option_chain(exp)
+        for (_, row) in chain.calls.iterrows():
+            rows.append([exp, row["strike"], (row["bid"]+row["ask"])/2, "CALL"])
+        for (_, row) in chain.puts.iterrows():
+            rows.append([exp, row["strike"], (row["bid"]+row["ask"])/2, "PUT"])
 
     if not rows:
-        st.error("No option data returned by yfinance.")
+        st.error("No option data returned.")
         return None, None
 
-    # ----------------  CLEAN & FILTER (index-safe)  -----------------
-    df = pd.DataFrame(rows, columns=["expiry", "strike", "price", "type"])
+    df = pd.DataFrame(rows,
+                      columns=["expiry", "strike", "midprice", "type"])
     df["strike"] = pd.to_numeric(df["strike"], errors="coerce")
-    df.dropna(subset=["strike", "price"], inplace=True)
-    df.reset_index(drop=True, inplace=True)                 # RangeIndex
+    df.dropna(subset=["strike", "midprice"], inplace=True)
+    df.drop_duplicates(subset=["expiry", "strike", "type"], inplace=True)
+    df.reset_index(drop=True, inplace=True)
 
-    # keep strikes ±20 %
-    mask_strike = (df["strike"].to_numpy() > S0*0.8) & (df["strike"].to_numpy() < S0*1.2)
-    df = df.iloc[mask_strike]
+    # 3) keep strikes ±20 % of spot  (NumPy mask ⇒ never re-indexes)
+    strikes = df["strike"].to_numpy(dtype=float)
+    keep_strike = np.logical_and(strikes > 0.8*S0, strikes < 1.2*S0)
+    df = df.iloc[keep_strike]
 
-    # days-to-expiry
+    # 4) convert expiry to days-to-expiry and keep 1-99 days
     df["dte"] = (pd.to_datetime(df["expiry"]) - today).dt.days
-    # keep 1–99 days
-    mask_exp = (df["dte"].to_numpy() > 0) & (df["dte"].to_numpy() < 100)
-    df = df.iloc[mask_exp]
+    dte_arr = df["dte"].to_numpy(dtype=int)
+    keep_dte = np.logical_and(dte_arr > 0, dte_arr < 100)
+    df = df.iloc[keep_dte]
 
     if df.empty:
-        st.error("No options left after filtering by strike/expiry.")
+        st.error("No options within strike/DTE filters.")
         return None, None
 
-    # Pivot to (dte, strike) index with CALL / PUT columns
-    df = df.pivot_table(index=["dte", "strike"], columns="type", values="price").sort_index()
+    # 5) pivot to (dte, strike) index  ×  CALL / PUT columns
+    df = (df
+          .pivot_table(index=["dte", "strike"], columns="type",
+                       values="midprice")
+          .sort_index())
 
-    # ----------------  Black-Scholes helpers  -----------------
-    def bs_price(vol, S, K, Pmkt, T, r, cp):
-        d1 = (np.log(S/K) + (r + 0.5*vol**2)*T) / (vol*np.sqrt(T))
-        d2 = d1 - vol*np.sqrt(T)
-        if cp == "CALL":
-            return S*norm.cdf(d1) - K*np.exp(-r*T)*norm.cdf(d2) - Pmkt
+    # ───── Black-Scholes + Greeks ──────────────────────────────────────
+    def bs_residual(sig, S, K, P, T, r, otype):
+        d1 = (np.log(S/K) + (r + 0.5*sig**2)*T) / (sig*np.sqrt(T))
+        d2 = d1 - sig*np.sqrt(T)
+        if otype == "CALL":
+            return S*norm.cdf(d1) - K*np.exp(-r*T)*norm.cdf(d2) - P
         else:
-            return K*np.exp(-r*T)*norm.cdf(-d2) - Pmkt - S*norm.cdf(-d1)
+            return K*np.exp(-r*T)*norm.cdf(-d2) - P - S*norm.cdf(-d1)
 
-    def greeks(S, K, T, r, vol, cp):
-        d1 = (np.log(S/K) + (r + 0.5*vol**2)*T) / (vol*np.sqrt(T))
-        d2 = d1 - vol*np.sqrt(T)
-        if cp == "CALL":
-            delta = norm.cdf(d1); rho = K*T*np.exp(-r*T)*norm.cdf(d2)/100
-        else:
-            delta = norm.cdf(d1) - 1; rho = -K*T*np.exp(-r*T)*norm.cdf(-d2)/100
-        gamma = norm.pdf(d1)/(S*vol*np.sqrt(T))
-        theta = -(S*norm.pdf(d1)*vol/(2*np.sqrt(T)) - r*K*np.exp(-r*T)*(
-                 norm.cdf(d2) if cp=="CALL" else norm.cdf(-d2)))/365
-        vega  = S*norm.pdf(d1)*np.sqrt(T)/100
-        return delta, gamma, theta, vega, rho
-
-    # ----------------  Solve for IV + Greeks  ----------------
     iv_list, greek_list = [], []
-    for (dte, K), price in df[option_type].dropna().items():
+    for (dte, K), price in df[opt_type].items():
         T = dte / 365.0
         try:
-            iv = fsolve(bs_price, x0=sigma0,
-                        args=(S0, K, price, T, rfr, option_type), xtol=tol)[0]
-            if 0 < iv < 5:   # sanity
-                iv_list.append(iv)
-                greek_list.append(greeks(S0, K, T, rfr, iv, option_type))
-            else:
-                iv_list.append(np.nan); greek_list.append([np.nan]*5)
+            iv = float(fsolve(bs_residual, sigma0,
+                              args=(S0, K, price, T, rfr, opt_type),
+                              xtol=tol)[0])
         except Exception:
-            iv_list.append(np.nan); greek_list.append([np.nan]*5)
+            iv = np.nan
+        # Greeks (only if iv solved)
+        if np.isnan(iv) or iv <= 0:
+            iv_list.append(np.nan)
+            greek_list.append([np.nan]*5)
+            continue
+        d1 = (np.log(S0/K) + (rfr + 0.5*iv**2)*T) / (iv*np.sqrt(T))
+        d2 = d1 - iv*np.sqrt(T)
+        if opt_type == "CALL":
+            delta = norm.cdf(d1)
+            rho   = K*T*np.exp(-rfr*T)*norm.cdf(d2)/100
+        else:
+            delta = norm.cdf(d1) - 1
+            rho   = -K*T*np.exp(-rfr*T)*norm.cdf(-d2)/100
+        gamma = norm.pdf(d1)/(S0*iv*np.sqrt(T))
+        theta = -(S0*norm.pdf(d1)*iv/(2*np.sqrt(T))
+                  - rfr*K*np.exp(-rfr*T)*(norm.cdf(d2) if opt_type=="CALL"
+                                          else norm.cdf(-d2)))/365
+        vega  = S0*norm.pdf(d1)*np.sqrt(T)/100
+        iv_list.append(iv)
+        greek_list.append([delta, gamma, theta, vega, rho])
 
-    iv_series  = pd.Series(iv_list, index=df[option_type].dropna().index)
-    greeks_df  = pd.DataFrame(greek_list, index=iv_series.index,
-                              columns=["DELTA","GAMMA","THETA","VEGA","RHO"])
+    iv_series = pd.Series(iv_list, index=df[opt_type].index)
+    greek_df  = pd.DataFrame(greek_list,
+                             index=df[opt_type].index,
+                             columns=["DELTA","GAMMA","THETA","VEGA","RHO"])
 
-    iv_grid     = iv_series.unstack(0).interpolate("linear")
-    greeks_grid = greeks_df.unstack(0).interpolate("linear").fillna(0)
+    iv_grid  = iv_series.unstack(level=0).interpolate("linear")
+    greek_grid = greek_df.unstack(level=0).interpolate("linear").fillna(0)
+    return iv_grid, greek_grid
 
-    return iv_grid, greeks_grid
-
-# ─────────────────────────────────  PLOTTER  ───────────────────────────────────
-def plot_surface(vol_grid, greek_grid, greek_param, option_type, ticker):
-    X = vol_grid.columns.values          # days-to-expiry
-    Y = vol_grid.index.values            # strikes
+# ─────────────────────────────  Surface plot  ──────────────────────────
+def plot_surface(vol_surf: pd.DataFrame, greek_surf: pd.DataFrame,
+                 greek: str, ticker: str, opt_type: str):
+    X = vol_surf.columns.values      # days-to-exp
+    Y = vol_surf.index.values        # strikes
     X, Y = np.meshgrid(X, Y)
-    Z = vol_grid.values
-    C = greek_grid[greek_param].values
+    Z = vol_surf.values
+    C = greek_surf[greek].values
 
-    # simple colour-scale
-    if greek_param == "DELTA":
-        norm = Normalize(-1, 0) if option_type=="PUT" else Normalize(0, 1)
-    elif greek_param == "GAMMA":
-        norm = Normalize(0, np.nanmax(C))
-    elif greek_param == "THETA":
-        norm = Normalize(np.nanmin(C), 0)
-    elif greek_param == "VEGA":
-        norm = Normalize(0, np.nanmax(C))
+    if greek == "DELTA":
+        cmap, norm = ("plasma_r" if opt_type=="PUT" else "plasma",
+                      Normalize(-1 if opt_type=="PUT" else 0,
+                                0 if opt_type=="PUT" else 1))
+    elif greek == "GAMMA":
+        cmap, norm = "plasma", Normalize(0, np.nanmax(C))
+    elif greek == "THETA":
+        cmap, norm = "plasma_r", Normalize(np.nanmin(C), 0)
+    elif greek == "VEGA":
+        cmap, norm = "plasma", Normalize(0, np.nanmax(C))
     else:  # RHO
-        norm = Normalize(-0.5,0) if option_type=="PUT" else Normalize(0,0.5)
+        cmap, norm = ("plasma_r" if opt_type=="PUT" else "plasma",
+                      Normalize(np.nanmin(C), np.nanmax(C)))
 
+    plt.style.use("dark_background")
     fig = plt.figure(figsize=(14,7))
     ax  = fig.add_subplot(111, projection="3d")
-    cmap = plt.get_cmap("plasma_r" if (greek_param in ["DELTA","THETA","RHO"]
-                                       and option_type=="PUT") else "plasma")
-    ax.plot_surface(X, Y, Z, facecolors=cmap(norm(C)), linewidth=0, antialiased=False)
-    ax.set_xlabel("Days to Expiry"); ax.set_ylabel("Strike"); ax.set_zlabel("IV")
-    ax.set_title(f"{ticker.upper()} {option_type} – IV Surface w/ {greek_param}")
-    m = plt.cm.ScalarMappable(cmap=cmap, norm=norm); m.set_array(C)
-    fig.colorbar(m, shrink=0.5).set_label(greek_param)
+    surf = ax.plot_surface(X, Y, Z, facecolors=plt.cm.get_cmap(cmap)(norm(C)),
+                           linewidth=0, antialiased=False)
+    ax.set_xlabel("Days to Expiry")
+    ax.set_ylabel("Strike")
+    ax.set_zlabel("Implied Volatility")
+    ax.set_title(f"{ticker.upper()} {opt_type} IV Surface\n(coloured by {greek})")
+    m  = plt.cm.ScalarMappable(cmap=cmap, norm=norm);  m.set_array(C)
+    fig.colorbar(m, shrink=0.5, aspect=8, label=greek)
     st.pyplot(fig)
 
-# ────────────────────────────────  SIDEBAR  ────────────────────────────────
+# ─────────────────────────────  Streamlit UI  ──────────────────────────
 with st.sidebar:
     st.title("Volatility Surface Generator")
-    st.write("Created by [Aidan Tabrizi](https://www.linkedin.com/in/aidan-tabrizi/)")
-    ticker        = st.text_input("Ticker", value="AAPL")
-    option_type   = st.selectbox("Option Type", ["CALL","PUT"])
-    greek_param   = st.selectbox("Greek Heat-map", ["DELTA","GAMMA","THETA","VEGA","RHO"])
-    risk_free     = st.number_input("Risk-free Rate", value=0.04)
-    sigma_guess   = st.number_input("Initial Vol Guess", value=0.4, step=0.01)
+    ticker       = st.text_input("Ticker", value="AAPL")
+    opt_type     = st.selectbox("Option Type", ["CALL","PUT"])
+    greek        = st.selectbox("Colour by Greek", ["DELTA","GAMMA","THETA","VEGA","RHO"])
+    rfr          = st.number_input("Risk-free rate", value=0.04)
+    sigma_guess  = st.number_input("Initial vol guess", value=0.4, step=0.01)
+    tol          = 1e-9
 
-# ────────────────────────────────  MAIN  ───────────────────────────────────
 if ticker:
-    with st.spinner("Crunching…"):
-        iv_grid, gk_grid = volatility_solver(ticker, risk_free,
-                                             option_type, sigma_guess, 1e-8)
+    with st.spinner("Computing surface…"):
+        iv_grid, gk_grid = volatility_solver(ticker, rfr, opt_type,
+                                             sigma_guess, tol)
     if iv_grid is not None and not iv_grid.empty:
         st.success("Done!")
-        plot_surface(iv_grid, gk_grid, greek_param, option_type, ticker)
-    else:
-        st.error("Could not build IV surface – check data filters or ticker.")
-else:
-    st.info("Enter a ticker symbol to begin.")
+        plot_surface(iv_grid, gk_grid, greek, ticker, opt_type)

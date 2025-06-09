@@ -87,17 +87,22 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
 
     # Convert the list to a DataFrame
     df_option_data = pd.DataFrame(df_option_data, columns=['expiration_date', 'strike', 'midprice', 'type'])
+    df_option_data['strike'] = pd.to_numeric(df_option_data['strike'], errors='coerce')
+    df_option_data.dropna(subset=['strike', 'midprice'], inplace=True)
 
     # Filter the data to strikes within 20% of the current stock price
-    df_option_data = df_option_data[(S0 * 0.8 < df_option_data['strike']) & (df_option_data['strike'] < S0 * 1.2)]
+    strikes = df_option_data['strike'].to_numpy(float)
+    strike_mask = (strikes > S0 * 0.8) & (strikes < S0 * 1.2)
+    df_option_data = df_option_data.iloc[strike_mask]
 
     # Calculate days to expiry using 'today' as the most recent market day
     df_option_data['days_to_expiry'] = pd.to_datetime(df_option_data['expiration_date'])
     df_option_data['expiration_date'] = (df_option_data['days_to_expiry'] - today).dt.days
 
     # Filter by expiry dates within 100 days
-    df_option_data = df_option_data[df_option_data['expiration_date'] > 0]
-    df_option_data = df_option_data[df_option_data['expiration_date'] < 100]
+    exp_days = df_option_data['expiration_date'].to_numpy(int)
+    expiry_mask = (exp_days > 0) & (exp_days < 100)
+    df_option_data = df_option_data.iloc[expiry_mask]
 
     # Set index and pivot the table for easier access
     df_option_data = df_option_data.set_index(['expiration_date', 'strike', 'type']).sort_index()

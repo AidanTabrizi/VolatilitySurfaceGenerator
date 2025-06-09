@@ -209,18 +209,32 @@ def plot_surface(vol_surf: pd.DataFrame, greek_surf: pd.DataFrame,
     ax.set_zlabel("Implied Volatility")
     ax.set_title(f"{ticker.upper()} {opt_type} IV Surface\n(coloured by {greek})")
     m  = plt.cm.ScalarMappable(cmap=cmap, norm=norm);  m.set_array(C)
-    fig.colorbar(m, shrink=0.5, aspect=8, label=greek)
+    color_bar = fig.colorbar(m, shrink=0.5, aspect=8, label=greek)
+    color_bar.set_label(f'{greek_parameter.capitalize()}', color='#FFFFFF', fontsize=12, labelpad=15, weight='bold')
+
+    # Set the tick parameters (optional customization)
+    color_bar.ax.tick_params(labelsize=10, labelcolor='#FFFFFF')
     st.pyplot(fig)
 
 # ─────────────────────────────  Streamlit UI  ──────────────────────────
+# Streamlit UI
 with st.sidebar:
     st.title("Volatility Surface Generator")
-    ticker       = st.text_input("Ticker", value="AAPL")
-    opt_type     = st.selectbox("Option Type", ["CALL","PUT"])
-    greek        = st.selectbox("Colour by Greek", ["DELTA","GAMMA","THETA","VEGA","RHO"])
-    rfr          = st.number_input("Risk-free rate", value=0.04)
-    sigma_guess  = st.number_input("Initial vol guess", value=0.4, step=0.01)
-    tol          = 1e-9
+    st.write("`Created by:`")
+    linkedin_url = "https://www.linkedin.com/in/aidan-tabrizi/"
+    st.markdown(f'<a href="{linkedin_url}" target="_blank" style="text-decoration: none; color: inherit;"><img src="https://cdn-icons-png.flaticon.com/512/174/174857.png" width="25" height="25" style="vertical-align: middle; margin-right: 10px;">`Aidan Tabrizi`</a>', unsafe_allow_html=True)
+
+# Input fields in the sidebar
+ticker = st.sidebar.text_input('Ticker Symbol:', value='AAPL')
+option_type = st.sidebar.selectbox('Option Type:', ['CALL', 'PUT'])
+greek_parameter = st.sidebar.selectbox('Heatmap Parameter:', ['DELTA','GAMMA','THETA','VEGA','RHO'])
+risk_free_rate = st.sidebar.number_input("Risk-Free Rate:", value=0.04)
+# Added input field for initial volatility guess
+sigma = st.sidebar.number_input("Initial Volatility Guess:", value=0.4, step=0.01)
+tolerance = 1e-9  # Tolerance for the solver
+st.sidebar.write("Visualize the volatility surface and option Greeks (Delta, Gamma, Theta, Vega, Rho) for a call or put option of any chosen security! Just enter the ticker symbol, select the option type, input the risk-free rate, provide an initial guess for volatility, and choose a Greek parameter to overlay on the surface. Using market option prices from Yahoo Finance, the implied volatility is calculated with the Black-Scholes model, and the results are plotted via Matplotlib with interactive heatmaps to enhance analysis and understanding.")
+
+# Main Content
 
 if ticker:
     with st.spinner("Computing surface…"):

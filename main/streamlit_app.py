@@ -230,7 +230,7 @@ option_type = st.sidebar.selectbox('Option Type:', ['CALL', 'PUT'])
 greek_parameter = st.sidebar.selectbox('Heatmap Parameter:', ['DELTA','GAMMA','THETA','VEGA','RHO'])
 risk_free_rate = st.sidebar.number_input("Risk-Free Rate:", value=0.04)
 # Added input field for initial volatility guess
-sigma = st.sidebar.number_input("Initial Volatility Guess:", value=0.4, step=0.01)
+sigma_guess = st.sidebar.number_input("Initial Volatility Guess:", value=0.4, step=0.01)
 tolerance = 1e-9  # Tolerance for the solver
 st.sidebar.write("Visualize the volatility surface and option Greeks (Delta, Gamma, Theta, Vega, Rho) for a call or put option of any chosen security! Just enter the ticker symbol, select the option type, input the risk-free rate, provide an initial guess for volatility, and choose a Greek parameter to overlay on the surface. Using market option prices from Yahoo Finance, the implied volatility is calculated with the Black-Scholes model, and the results are plotted via Matplotlib with interactive heatmaps to enhance analysis and understanding.")
 
@@ -238,7 +238,7 @@ st.sidebar.write("Visualize the volatility surface and option Greeks (Delta, Gam
 
 if ticker:
     with st.spinner("Computing surface…"):
-        iv_grid, gk_grid = volatility_solver(ticker, rfr, opt_type, sigma_guess, tol)
+        iv_grid, gk_grid = volatility_solver(ticker, risk_free_rate, option_type, sigma_guess, tolerance)
     if iv_grid is not None and not iv_grid.empty:
         st.success("Done!")
         plot_surface(iv_grid, gk_grid, greek, ticker, opt_type)

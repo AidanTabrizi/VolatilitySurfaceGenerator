@@ -94,6 +94,17 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
     # Drop rows with NaNs in critical columns
     df_option_data.dropna(subset=['strike', 'midprice', 'expiration_date', 'type'], inplace=True)
 
+    def safe_filter(df, S0):
+    try:
+        mask = (df['strike'] > S0*0.8) & (df['strike'] < S0*1.2)
+        return df.loc[mask]
+    except Exception as e:
+        st.write("DEBUG - strike filter failed")
+        st.write("mask type:", type(mask))
+        st.write("mask index head:", mask.index[:5])
+        st.write("df index head:", df.index[:5])
+        raise   # re-throw so we still see the traceback
+
     # Filter the data to strikes within 20% of the current stock price
     df_option_data = df_option_data[(S0 * 0.8 < df_option_data['strike']) & (df_option_data['strike'] < S0 * 1.2)]
 

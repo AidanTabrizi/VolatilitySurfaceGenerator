@@ -88,6 +88,12 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
     # Convert the list to a DataFrame
     df_option_data = pd.DataFrame(df_option_data, columns=['expiration_date', 'strike', 'midprice', 'type'])
 
+    # Ensure 'strike' is numeric
+    df_option_data['strike'] = pd.to_numeric(df_option_data['strike'], errors='coerce')
+
+    # Drop rows with NaNs in critical columns
+    df_option_data.dropna(subset=['strike', 'midprice', 'expiration_date', 'type'], inplace=True)
+
     # Filter the data to strikes within 20% of the current stock price
     df_option_data = df_option_data[(S0 * 0.8 < df_option_data['strike']) & (df_option_data['strike'] < S0 * 1.2)]
 

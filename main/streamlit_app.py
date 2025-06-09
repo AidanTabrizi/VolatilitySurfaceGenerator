@@ -207,7 +207,7 @@ def plot_surface(vol_surf: pd.DataFrame, greek_surf: pd.DataFrame,
     ax.set_xlabel("Days to Expiry")
     ax.set_ylabel("Strike")
     ax.set_zlabel("Implied Volatility")
-    ax.set_title(f"{ticker.upper()} {opt_type} IV Surface\n(coloured by {greek})")
+    ax.set_title(f"{ticker.upper()} {opt_type} Implied Volatility Surface\n(coloured by {greek})")
     m  = plt.cm.ScalarMappable(cmap=cmap, norm=norm);  m.set_array(C)
     color_bar = fig.colorbar(m, shrink=0.5, aspect=8, label=greek)
     color_bar.set_label(f'{greek_parameter.capitalize()}', color='#FFFFFF', fontsize=12, labelpad=15, weight='bold')

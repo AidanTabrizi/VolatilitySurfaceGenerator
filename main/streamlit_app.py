@@ -238,8 +238,7 @@ st.sidebar.write("Visualize the volatility surface and option Greeks (Delta, Gam
 
 if ticker:
     with st.spinner("Computing surface…"):
-        iv_grid, gk_grid = volatility_solver(ticker, rfr, opt_type,
-                                             sigma_guess, tol)
+        iv_grid, gk_grid = volatility_solver(ticker, rfr, opt_type, sigma_guess, tol)
     if iv_grid is not None and not iv_grid.empty:
         st.success("Done!")
         plot_surface(iv_grid, gk_grid, greek, ticker, opt_type)

@@ -241,4 +241,4 @@ if ticker:
         iv_grid, gk_grid = volatility_solver(ticker, risk_free_rate, option_type, sigma_guess, tolerance)
     if iv_grid is not None and not iv_grid.empty:
         st.success("Done!")
-        plot_surface(iv_grid, gk_grid, greek, ticker, opt_type)
+        plot_surface(iv_grid, gk_grid, greek_parameter, ticker, option_type)

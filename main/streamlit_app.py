@@ -105,6 +105,8 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
             st.write("df index head:", df.index[:5])
             raise   # re-throw so we still see the traceback
 
+    df_option_data = safe_filter(df_option_data, S0)
+
     # Filter the data to strikes within 20% of the current stock price
     df_option_data = df_option_data[(S0 * 0.8 < df_option_data['strike']) & (df_option_data['strike'] < S0 * 1.2)]
 

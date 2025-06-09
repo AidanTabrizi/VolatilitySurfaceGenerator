@@ -13,10 +13,17 @@ from matplotlib.colors import Normalize
 st.markdown(
     """
     <style>
-        header, footer, .css-1y4p8pa {visibility: hidden;}
+    /* Hide the Streamlit header */
+    header {visibility: hidden;}
+
+    /* Hide the Streamlit footer */
+    footer {visibility: hidden;}
+
+    /* Hide the hamburger menu */
+    .css-1y4p8pa {visibility: hidden;}
     </style>
     """,
-    unsafe_allow_html=True,
+    unsafe_allow_html=True
 )
 
 # ───────────────────────────  Helper functions  ────────────────────────
@@ -162,11 +169,41 @@ def plot_surface(vol_surf: pd.DataFrame, greek_surf: pd.DataFrame,
         cmap, norm = ("plasma_r" if opt_type=="PUT" else "plasma",
                       Normalize(np.nanmin(C), np.nanmax(C)))
 
-    plt.style.use("dark_background")
-    fig = plt.figure(figsize=(14,7))
+    custom_style = {
+        'axes.facecolor': '#0E1118',  # Background color of the plot
+        'axes.edgecolor': '#FFFFFF',  # Edge color of the plot
+        'axes.labelcolor': '#FFFFFF',  # Color of x, y, z axis labels
+        'figure.facecolor': '#0E1118',  # Background color of the figure
+        'grid.color': '#555555',  # Color of grid lines, slightly brighter for better contrast
+        'text.color': '#FFFFFF',  # Text color
+        'axes.titleweight': 'bold',  # Title weight
+        'axes.labelweight': 'bold',  # Label weight
+        'axes.titlesize': 20,  # Title size
+        'axes.labelsize': 12,  # Label size
+        'font.family': 'sans-serif',  # Font family
+        'font.size': 11,  # Font size
+        'legend.fontsize': 11,  # Legend font size
+        'figure.autolayout': True,  # Automatically adjust the layout
+    }
+                     
+    plt.rcParams.update(custom_style)
+    fig = plt.figure(figsize=(16, 8))
+    ax = fig.add_subplot(111, projection='3d')
+    ax.xaxis.pane.fill = False
+    ax.yaxis.pane.fill = False
+    ax.zaxis.pane.fill = False
+    ax.xaxis.pane.set_edgecolor('#555555')
+    ax.yaxis.pane.set_edgecolor('#555555')
+    ax.zaxis.pane.set_edgecolor('#555555')
+    ax.tick_params(axis='x', colors='#FFFFFF')
+    ax.tick_params(axis='y', colors='#FFFFFF')
+    ax.tick_params(axis='z', colors='#FFFFFF')
+    ax.xaxis.set_tick_params(labelcolor='#FFFFFF')
+    ax.yaxis.set_tick_params(labelcolor='#FFFFFF')
+    ax.zaxis.set_tick_params(labelcolor='#FFFFFF')
+                     
     ax  = fig.add_subplot(111, projection="3d")
-    surf = ax.plot_surface(X, Y, Z, facecolors=plt.cm.get_cmap(cmap)(norm(C)),
-                           linewidth=0, antialiased=False)
+    surf = ax.plot_surface(X, Y, Z, facecolors=colormap(norm(C)), rstride=1,cstride=1, edgecolor='#657383', linewidth=0.02, antialiased=False)
     ax.set_xlabel("Days to Expiry")
     ax.set_ylabel("Strike")
     ax.set_zlabel("Implied Volatility")

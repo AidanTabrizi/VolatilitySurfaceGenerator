@@ -232,7 +232,7 @@ risk_free_rate = st.sidebar.number_input("Risk-Free Rate:", value=0.04)
 # Added input field for initial volatility guess
 sigma_guess = st.sidebar.number_input("Initial Volatility Guess:", value=0.4, step=0.01)
 tolerance = 1e-9  # Tolerance for the solver
-st.sidebar.write("Visualize the volatility surface and option Greeks (Delta, Gamma, Theta, Vega, Rho) for a call or put option of any chosen security! Just enter the ticker symbol, select the option type, input the risk-free rate, provide an initial guess for volatility, and choose a Greek parameter to overlay on the surface. Using market option prices from Yahoo Finance, the implied volatility is calculated with the Black-Scholes model, and the results are plotted via Matplotlib with interactive heatmaps to enhance analysis and understanding.")
+st.info("Visualize the volatility surface and option Greeks (Delta, Gamma, Theta, Vega, Rho) for a call or put option of any chosen security! Just enter the ticker symbol, select the option type, input the risk-free rate, provide an initial guess for volatility, and choose a Greek parameter to overlay on the surface. Using market option prices from Yahoo Finance, the implied volatility is calculated with the Black-Scholes model, and the results are plotted via Matplotlib with interactive heatmaps to enhance analysis and understanding.")
 
 # Main Content
 

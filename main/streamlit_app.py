@@ -129,6 +129,31 @@ def volatility_solver(ticker, rfr, option_type, sigma, tolerance):
             columns='type',
             values='midprice'
         ).sort_index()
+
+        # ⬇️ add this little tracer near the top of volatility_solver, right after the
+# DataFrame is fully built *and before any filters*.
+
+    import inspect, traceback
+    
+    def _trap():
+        frm = inspect.currentframe().f_back
+        code = frm.f_code
+        lineno = frm.f_lineno
+        st.write("DEBUG-trap at", code.co_filename, "line", lineno)
+        st.write(traceback.format_stack(limit=3))
+    
+    # … then sprinkle `_trap()` just before each filter:
+    
+    _trap()  # right before the strike between() filter
+    df_option_data = df_option_data[
+        df_option_data['strike'].between(S0 * 0.8, S0 * 1.2, inclusive="both")
+    ]
+    
+    _trap()  # right before the expiry between() filter
+    df_option_data = df_option_data[
+        df_option_data['expiration_date'].between(1, 99, inclusive="both")
+    ]
+
         
         # ------------------------------------------------------------------
         #  (the very next line in your original code is:

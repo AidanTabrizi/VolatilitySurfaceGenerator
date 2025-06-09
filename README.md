@@ -1,6 +1,6 @@
 # Volatility Surface Generator
 
-! [Description](./screenshot.png)
+![Description](./screenshot.png)
 
 This project is a web application designed to plot the implied volatility surface of put and call options for a given security. By entering a ticker symbol and other necessary parameters, users can visualize the volatility surface using the Black-Scholes model (constant volatility) along with the corresponding Greeks.
 
